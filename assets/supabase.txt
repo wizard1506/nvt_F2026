@@ -1,0 +1,6 @@
+API URL SUPABASE
+https://byfgqevdyxtdlochmyml.supabase.co/rest/v1/
+ANON PUBLIC
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5ZmdxZXZkeXh0ZGxvY2hteW1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEyNzM2MjAsImV4cCI6MjEwNjg0OTYyMH0.GM_741jiftEcK87J6D-1iymj7L5NB1JfmCxfD1fD0S8
+
+
