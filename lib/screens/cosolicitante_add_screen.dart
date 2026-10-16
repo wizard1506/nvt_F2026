@@ -99,10 +99,32 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
   @override
   void initState() {
     super.initState();
+    final rol = Sesion.instance.rol;
+    final puede = rol == 1 || rol == 4;
+    if (!puede) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No tienes permiso para acceder a esta sección'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+      return;
+    }
     for (final key in _fieldKeys) {
       _controllers[key] = TextEditingController();
     }
     _c('prefijo').text = 'NINGUNO';
+    _c('tipo_identificacion').text = 'Carnet de Identidad';
+    _c('extension').text = '--';
+    _c('estado_civil').text = 'Soltero(a)';
+    _c('sexo').text = 'Masculino';
+    _c('nivel_estudio').text = 'Ninguno';
+    _c('dpto').text = '--';
+    _c('moneda_ingresos').text = 'Bs.';
   }
 
   @override

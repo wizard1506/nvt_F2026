@@ -1,10 +1,35 @@
 import 'package:flutter/material.dart';
 
+import '../services/sesion.dart';
 import '../theme/app_colors.dart';
 import 'cosolicitante_add_screen.dart';
 
-class CosolicitantesScreen extends StatelessWidget {
+class CosolicitantesScreen extends StatefulWidget {
   const CosolicitantesScreen({super.key});
+
+  @override
+  State<CosolicitantesScreen> createState() => _CosolicitantesScreenState();
+}
+
+class _CosolicitantesScreenState extends State<CosolicitantesScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final rol = Sesion.instance.rol;
+    final puede = rol == 1 || rol == 4;
+    if (!puede) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No tienes permiso para acceder a esta sección'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

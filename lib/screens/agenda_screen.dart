@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../services/cliente_service.dart';
+import '../services/sesion.dart';
 import '../theme/app_colors.dart';
+import '../widgets/estado_badge.dart';
 
 class AgendaScreen extends StatefulWidget {
   const AgendaScreen({super.key});
@@ -44,6 +46,21 @@ class _AgendaScreenState extends State<AgendaScreen> {
   @override
   void initState() {
     super.initState();
+    final rol = Sesion.instance.rol;
+    final puede = rol == 1 || rol == 5;
+    if (!puede) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No tienes permiso para acceder a esta sección'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+      return;
+    }
     final hoy = DateTime.now();
     _mesVisible = DateTime(hoy.year, hoy.month);
     _diaSeleccionado = DateTime(hoy.year, hoy.month, hoy.day);
@@ -471,9 +488,80 @@ class _CitasDelDiaSheetState extends State<_CitasDelDiaSheet> {
               if (cita.personal.isNotEmpty) cita.personal,
             ].join(' · '),
           ),
+          trailing: EstadoBadge(
+            estado: cita.estado,
+            onTap: () => _cambiarEstado(cita),
+          ),
         );
       },
     );
+  }
+
+  Future<void> _cambiarEstado(CitaResumen cita) async {
+    final estadoActual = cita.estado.trim().toUpperCase();
+    final nuevoEstado = estadoActual == 'ATENDIDA' ? 'PENDIENTE' : 'ATENDIDA';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryBlue),
+      ),
+    );
+
+    try {
+      await ClienteService.instance.actualizarEstadoCita(cita.id, nuevoEstado);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Estado actualizado a $nuevoEstado'),
+          action: SnackBarAction(
+            label: 'Deshacer',
+            onPressed: () async {
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
+              );
+              try {
+                await ClienteService.instance.actualizarEstadoCita(
+                  cita.id,
+                  estadoActual.isEmpty ? 'PENDIENTE' : estadoActual,
+                );
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true).pop();
+                _cargar();
+              } catch (error) {
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('No se pudo deshacer el cambio: $error'),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+      );
+      _cargar();
+    } catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cambiar el estado: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
   }
 
   String _fechaLegible() {

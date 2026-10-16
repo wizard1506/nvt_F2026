@@ -68,6 +68,7 @@ class CitaResumen {
     required this.informacion,
     required this.personal,
     required this.personalId,
+    required this.estado,
     required this.creadoPor,
   });
 
@@ -79,6 +80,7 @@ class CitaResumen {
   final String informacion;
   final String personal;
   final int? personalId;
+  final String estado;
   final String creadoPor;
 }
 
@@ -174,7 +176,7 @@ class ClienteService {
     var query = _client
         .from('cita')
         .select(
-          'id, contrato, cliente, fecha_cita, hora_cita, informacion, '
+          'id, contrato, cliente, fecha_cita, hora_cita, informacion, estado, '
           'personal_asignado, personal_citas(funcionario), '
           'usuario(nombres, apellidos)',
         );
@@ -224,6 +226,11 @@ class ClienteService {
         .eq('id', citaId);
   }
 
+  Future<void> actualizarEstadoCita(int citaId, String estado) async {
+    await _ensureInitialized();
+    await _client.from('cita').update({'estado': estado}).eq('id', citaId);
+  }
+
   Future<Map<String, int>> contarCitasPorDia(
     DateTime desde,
     DateTime hasta,
@@ -258,7 +265,7 @@ class ClienteService {
     final response = await _client
         .from('cita')
         .select(
-          'id, contrato, cliente, fecha_cita, hora_cita, informacion, '
+          'id, contrato, cliente, fecha_cita, hora_cita, informacion, estado, '
           'personal_asignado, personal_citas(funcionario), '
           'usuario(nombres, apellidos)',
         )
@@ -296,6 +303,7 @@ class ClienteService {
       informacion: '${row['informacion'] ?? ''}',
       personal: funcionario,
       personalId: row['personal_asignado'] as int?,
+      estado: '${row['estado'] ?? ''}',
       creadoPor: creadoPor,
     );
   }

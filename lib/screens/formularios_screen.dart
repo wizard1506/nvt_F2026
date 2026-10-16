@@ -28,6 +28,21 @@ class _FormulariosScreenState extends State<FormulariosScreen> {
   @override
   void initState() {
     super.initState();
+    final rol = Sesion.instance.rol;
+    final puede = rol == 1 || rol == 4;
+    if (!puede) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No tienes permiso para acceder a esta sección'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+      return;
+    }
     _loadUrbanizaciones();
     _cargar();
   }

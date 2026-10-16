@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/sesion.dart';
 import '../theme/app_colors.dart';
 import 'agenda_screen.dart';
 import 'citas_screen.dart';
@@ -10,8 +11,107 @@ import 'login_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  bool _puedeVerFormularios(int? rol) => rol == 1 || rol == 4;
+  bool _puedeVerProspectos(int? rol) => rol == 1 || rol == 4;
+  bool _puedeVerCosolicitantes(int? rol) => rol == 1 || rol == 4;
+  bool _puedeVerCitas(int? rol) => rol == 1 || rol == 5;
+  bool _puedeVerAgenda(int? rol) => rol == 1 || rol == 5;
+
   @override
   Widget build(BuildContext context) {
+    final rol = Sesion.instance.rol;
+    final mostrarFormularios = _puedeVerFormularios(rol);
+    final mostrarProspectos = _puedeVerProspectos(rol);
+    final mostrarCosolicitantes = _puedeVerCosolicitantes(rol);
+    final mostrarCitas = _puedeVerCitas(rol);
+    final mostrarAgenda = _puedeVerAgenda(rol);
+
+    final tarjetas = <Widget>[];
+    if (mostrarFormularios) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Formularios',
+          subtitle: 'Gestiona los formularios',
+          icon: Icons.description_outlined,
+          color: AppColors.primaryBlue,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const FormulariosScreen(),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarProspectos) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Prospectos',
+          subtitle: 'Administra tus prospectos',
+          icon: Icons.people_outline,
+          color: AppColors.mediumGreen,
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Prospectos - Próximamente')),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarCosolicitantes) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Co-Solicitantes',
+          subtitle: 'Gestiona co-solicitantes',
+          icon: Icons.group_add_outlined,
+          color: AppColors.primaryBlue,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const CosolicitantesScreen(),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarCitas) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Citas',
+          subtitle: 'Gestiona tus citas',
+          icon: Icons.event_available_outlined,
+          color: AppColors.darkGreen,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const CitasScreen()),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarAgenda) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Agenda',
+          subtitle: 'Calendario de citas',
+          icon: Icons.calendar_month_outlined,
+          color: AppColors.lightBlue,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const AgendaScreen()),
+            );
+          },
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.white,
@@ -25,6 +125,7 @@ class HomeScreen extends StatelessWidget {
             icon: const Icon(Icons.logout, color: AppColors.darkBlue),
             tooltip: 'Cerrar sesión',
             onPressed: () {
+              Sesion.instance.clear();
               Navigator.of(context).pushReplacement(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
               );
@@ -59,86 +160,27 @@ class HomeScreen extends StatelessWidget {
                       ?.copyWith(color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 32),
-                GridView.count(
-                  crossAxisCount: columns,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 20,
-                  crossAxisSpacing: 20,
-                  childAspectRatio: isDesktop ? 1.4 : (isTablet ? 1.3 : 1.5),
-                  children: [
-                    _buildMenuCard(
-                      context,
-                      title: 'Formularios',
-                      subtitle: 'Gestiona los formularios',
-                      icon: Icons.description_outlined,
-                      color: AppColors.primaryBlue,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const FormulariosScreen(),
-                          ),
-                        );
-                      },
+                if (tarjetas.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 60),
+                      child: Text(
+                        'No tienes permisos para ver ninguna opción',
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: Colors.grey[600]),
+                      ),
                     ),
-                    _buildMenuCard(
-                      context,
-                      title: 'Prospectos',
-                      subtitle: 'Administra tus prospectos',
-                      icon: Icons.people_outline,
-                      color: AppColors.mediumGreen,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Prospectos - Próximamente'),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuCard(
-                      context,
-                      title: 'Co-Solicitantes',
-                      subtitle: 'Gestiona co-solicitantes',
-                      icon: Icons.group_add_outlined,
-                      color: AppColors.primaryBlue,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const CosolicitantesScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuCard(
-                      context,
-                      title: 'Citas',
-                      subtitle: 'Gestiona tus citas',
-                      icon: Icons.event_available_outlined,
-                      color: AppColors.darkGreen,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const CitasScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuCard(
-                      context,
-                      title: 'Agenda',
-                      subtitle: 'Calendario de citas',
-                      icon: Icons.calendar_month_outlined,
-                      color: AppColors.lightBlue,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const AgendaScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
+                  )
+                else
+                  GridView.count(
+                    crossAxisCount: columns,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 20,
+                    crossAxisSpacing: 20,
+                    childAspectRatio: isDesktop ? 1.4 : (isTablet ? 1.3 : 1.5),
+                    children: tarjetas,
+                  ),
               ],
             ),
           );

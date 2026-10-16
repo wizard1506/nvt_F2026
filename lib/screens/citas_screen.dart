@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/cliente_service.dart';
+import '../services/sesion.dart';
 import '../theme/app_colors.dart';
+import '../widgets/estado_badge.dart';
 import 'cita_add_screen.dart';
 
 class CitasScreen extends StatefulWidget {
@@ -26,6 +28,21 @@ class _CitasScreenState extends State<CitasScreen> {
   @override
   void initState() {
     super.initState();
+    final rol = Sesion.instance.rol;
+    final puede = rol == 1 || rol == 5;
+    if (!puede) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No tienes permiso para acceder a esta sección'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+      });
+      return;
+    }
     _cargar();
   }
 
@@ -310,6 +327,7 @@ class _CitasScreenState extends State<CitasScreen> {
         DataColumn(label: Text('Fecha', style: headerStyle)),
         DataColumn(label: Text('Hora', style: headerStyle)),
         DataColumn(label: Text('Personal asignado', style: headerStyle)),
+        DataColumn(label: Text('Estado', style: headerStyle)),
         DataColumn(label: Text('Creado por', style: headerStyle)),
         DataColumn(label: Text('Acciones', style: headerStyle)),
       ],
@@ -327,6 +345,7 @@ class _CitasScreenState extends State<CitasScreen> {
               DataCell(Text(cita.fecha)),
               DataCell(Text(cita.hora)),
               DataCell(Text(cita.personal)),
+              DataCell(EstadoBadge(estado: cita.estado)),
               DataCell(Text(cita.creadoPor)),
               DataCell(
                 OutlinedButton.icon(
