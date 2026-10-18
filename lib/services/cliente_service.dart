@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../utils/fechas.dart';
+import 'sesion.dart';
 
 class Urbanizacion {
   const Urbanizacion({required this.id, required this.nombre});
@@ -88,6 +89,35 @@ class PaginaCitas {
   const PaginaCitas({required this.items, required this.total});
 
   final List<CitaResumen> items;
+  final int total;
+}
+
+class ProspectoResumen {
+  const ProspectoResumen({
+    required this.id,
+    required this.prospecto,
+    required this.telefono,
+    required this.origenProspecto,
+    required this.vigencia,
+    required this.creadoPor,
+    required this.usuarioId,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String prospecto;
+  final String telefono;
+  final String origenProspecto;
+  final String vigencia;
+  final String creadoPor;
+  final int? usuarioId;
+  final String createdAt;
+}
+
+class PaginaProspectos {
+  const PaginaProspectos({required this.items, required this.total});
+
+  final List<ProspectoResumen> items;
   final int total;
 }
 
@@ -346,6 +376,116 @@ class ClienteService {
           .map((row) => _mapCliente(row as Map<String, dynamic>))
           .toList(),
       total: respuesta.count,
+    );
+  }
+
+  Future<bool> telefonoTieneVigenciaActiva(String telefono) async {
+    await _ensureInitialized();
+    final telTrim = telefono.trim();
+    if (telTrim.isEmpty) return false;
+    final telNum = BigInt.tryParse(telTrim.replaceAll(RegExp(r'\D'), ''));
+    if (telNum == null) return false;
+    final hoyIso = _isoFecha(DateTime.now());
+    final response = await _client
+        .from('prospectos')
+        .select('id')
+        .eq('telefono', telNum.toString())
+        .gte('vigencia', hoyIso)
+        .limit(1);
+    final filas = response as List;
+    return filas.isNotEmpty;
+  }
+
+  Future<bool> puedeRegistrarTelefono(String telefono) async {
+    await _ensureInitialized();
+    final telTrim = telefono.trim();
+    if (telTrim.isEmpty) return true;
+    final telNum = BigInt.tryParse(telTrim.replaceAll(RegExp(r'\D'), ''));
+    if (telNum == null) return true;
+    final hoyIso = _isoFecha(DateTime.now());
+    final response = await _client
+        .from('prospectos')
+        .select('id')
+        .eq('telefono', telNum.toString())
+        .gte('vigencia', hoyIso)
+        .limit(1);
+    final filas = response as List;
+    return filas.isEmpty;
+  }
+
+  Future<void> insertarProspecto(Map<String, dynamic> payload) async {
+    await _ensureInitialized();
+    await _client.from('prospectos').insert(payload);
+  }
+
+  Future<PaginaProspectos> fetchProspectos({
+    required int pagina,
+    required int porPagina,
+    String busqueda = '',
+  }) async {
+    await _ensureInitialized();
+    final termino = busqueda.trim();
+    var query = _client
+        .from('prospectos')
+        .select(
+          'id, prospecto, telefono, origen_prospecto, vigencia, usuario, created_at, usuario(nombres, apellidos)',
+        );
+
+    final rol = Sesion.instance.rol;
+    if (rol != 1) {
+      final userId = Sesion.instance.id;
+      if (userId != null) {
+        query = query.eq('usuario', userId);
+      }
+    }
+
+    if (termino.isNotEmpty) {
+      final condiciones = <String>[];
+      condiciones.add('prospecto.ilike.%$termino%');
+      if (RegExp(r'^\d+$').hasMatch(termino)) {
+        condiciones.add('telefono::text.ilike.%$termino%');
+      } else if (termino.isNotEmpty) {
+        condiciones.add('telefono::text.ilike.%$termino%');
+      }
+      query = query.or(condiciones.join(','));
+    }
+
+    final respuesta = await query
+        .order('id', ascending: false)
+        .range(pagina * porPagina, pagina * porPagina + porPagina - 1)
+        .count(CountOption.exact);
+
+    final filas = respuesta.data as List;
+    return PaginaProspectos(
+      items: filas
+          .map((row) => _mapProspecto(row as Map<String, dynamic>))
+          .toList(),
+      total: respuesta.count,
+    );
+  }
+
+  ProspectoResumen _mapProspecto(Map<String, dynamic> row) {
+    final usuario = row['usuario'];
+    String creadoPor = '';
+    int? usuarioId;
+    if (usuario is Map<String, dynamic>) {
+      final nombres = '${usuario['nombres'] ?? ''}';
+      final apellidos = '${usuario['apellidos'] ?? ''}';
+      creadoPor = [nombres, apellidos].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
+      usuarioId = usuario['id'] as int?;
+    } else if (usuario is int) {
+      usuarioId = usuario;
+    }
+    final telefono = row['telefono'];
+    return ProspectoResumen(
+      id: row['id'] as int,
+      prospecto: '${row['prospecto'] ?? ''}',
+      telefono: telefono == null ? '' : '$telefono',
+      origenProspecto: '${row['origen_prospecto'] ?? ''}',
+      vigencia: dmaDesdeIso(row['vigencia'] as String?),
+      creadoPor: creadoPor,
+      usuarioId: usuarioId,
+      createdAt: '${row['created_at'] ?? ''}',
     );
   }
 

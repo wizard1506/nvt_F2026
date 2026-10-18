@@ -7,6 +7,7 @@ import 'citas_screen.dart';
 import 'cosolicitantes_screen.dart';
 import 'formularios_screen.dart';
 import 'login_screen.dart';
+import 'prospectos_ver_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -54,8 +55,10 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.people_outline,
           color: AppColors.mediumGreen,
           onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Prospectos - Próximamente')),
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ProspectosVerScreen(),
+              ),
             );
           },
         ),
