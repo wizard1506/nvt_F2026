@@ -47,16 +47,21 @@ class PaginaClientes {
   final int total;
 }
 
-class PersonalCita {
-  const PersonalCita({required this.id, required this.funcionario});
+class UsuarioResumen {
+  const UsuarioResumen({required this.id, required this.nombre});
 
   final int id;
-  final String funcionario;
+  final String nombre;
 
-  factory PersonalCita.fromJson(Map<String, dynamic> json) => PersonalCita(
-    id: json['id'] as int,
-    funcionario: (json['funcionario'] as String?) ?? '',
-  );
+  factory UsuarioResumen.fromJson(Map<String, dynamic> json) {
+    final nombres = '${json['nombres'] ?? ''}';
+    final apellidos = '${json['apellidos'] ?? ''}';
+    final nombre = [
+      nombres,
+      apellidos,
+    ].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
+    return UsuarioResumen(id: json['id'] as int, nombre: nombre);
+  }
 }
 
 class CitaResumen {
@@ -67,10 +72,9 @@ class CitaResumen {
     required this.fecha,
     required this.hora,
     required this.informacion,
-    required this.personal,
-    required this.personalId,
     required this.estado,
-    required this.creadoPor,
+    required this.usuarioId,
+    required this.asignadoA,
   });
 
   final int id;
@@ -79,10 +83,9 @@ class CitaResumen {
   final String fecha;
   final String hora;
   final String informacion;
-  final String personal;
-  final int? personalId;
   final String estado;
-  final String creadoPor;
+  final int? usuarioId;
+  final String asignadoA;
 }
 
 class PaginaCitas {
@@ -98,6 +101,7 @@ class ProspectoResumen {
     required this.prospecto,
     required this.telefono,
     required this.origenProspecto,
+    required this.informacion,
     required this.vigencia,
     required this.creadoPor,
     required this.usuarioId,
@@ -108,6 +112,7 @@ class ProspectoResumen {
   final String prospecto;
   final String telefono;
   final String origenProspecto;
+  final String informacion;
   final String vigencia;
   final String creadoPor;
   final int? usuarioId;
@@ -155,19 +160,35 @@ class ClienteService {
     await _client.from('clientes').insert(payload);
   }
 
+  Future<Map<String, dynamic>?> fetchClientePorId(int id) async {
+    await _ensureInitialized();
+    final response = await _client
+        .from('clientes')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+    return response;
+  }
+
+  Future<void> actualizarCliente(int id, Map<String, dynamic> payload) async {
+    await _ensureInitialized();
+    await _client.from('clientes').update(payload).eq('id', id);
+  }
+
   Future<void> insertarCosolicitante(Map<String, dynamic> payload) async {
     await _ensureInitialized();
     await _client.from('cosolicitante').insert(payload);
   }
 
-  Future<List<PersonalCita>> fetchPersonalCitas() async {
+  Future<List<UsuarioResumen>> fetchUsuariosAsignables() async {
     await _ensureInitialized();
     final response = await _client
-        .from('personal_citas')
-        .select('id, funcionario')
-        .order('funcionario');
+        .from('usuario')
+        .select('id, nombres, apellidos')
+        .inFilter('rol', [5, 6])
+        .order('nombres');
     return (response as List)
-        .map((row) => PersonalCita.fromJson(row as Map<String, dynamic>))
+        .map((row) => UsuarioResumen.fromJson(row as Map<String, dynamic>))
         .toList();
   }
 
@@ -184,15 +205,6 @@ class ClienteService {
       condiciones.add('contrato.ilike.%$termino%');
       condiciones.add('cliente.ilike.%$termino%');
 
-      final personalMatch = await _client
-          .from('personal_citas')
-          .select('id')
-          .ilike('funcionario', '%$termino%');
-      final personalIds = [for (final row in personalMatch as List) row['id']];
-      if (personalIds.isNotEmpty) {
-        condiciones.add('personal_asignado.in.(${personalIds.join(',')})');
-      }
-
       final usuarioMatch = await _client
           .from('usuario')
           .select('id')
@@ -207,9 +219,16 @@ class ClienteService {
         .from('cita')
         .select(
           'id, contrato, cliente, fecha_cita, hora_cita, informacion, estado, '
-          'personal_asignado, personal_citas(funcionario), '
-          'usuario(nombres, apellidos)',
+          'usuario(id, nombres, apellidos)',
         );
+
+    final rol = Sesion.instance.rol;
+    if (rol != 1 && rol != 5) {
+      final userId = Sesion.instance.id;
+      if (userId != null) {
+        query = query.eq('usuario', userId);
+      }
+    }
 
     if (condiciones.isNotEmpty) {
       query = query.or(condiciones.join(','));
@@ -248,17 +267,19 @@ class ClienteService {
     await _client.from('cita').insert(payload);
   }
 
-  Future<void> actualizarPersonalCita(int citaId, int personalId) async {
+  Future<void> actualizarUsuarioCita(int citaId, int usuarioId) async {
     await _ensureInitialized();
-    await _client
-        .from('cita')
-        .update({'personal_asignado': personalId})
-        .eq('id', citaId);
+    await _client.from('cita').update({'usuario': usuarioId}).eq('id', citaId);
   }
 
   Future<void> actualizarEstadoCita(int citaId, String estado) async {
     await _ensureInitialized();
     await _client.from('cita').update({'estado': estado}).eq('id', citaId);
+  }
+
+  Future<void> eliminarCita(int citaId) async {
+    await _ensureInitialized();
+    await _client.from('cita').delete().eq('id', citaId);
   }
 
   Future<Map<String, int>> contarCitasPorDia(
@@ -272,12 +293,12 @@ class ClienteService {
     var offset = 0;
     final conteo = <String, int>{};
     while (true) {
-      final response = await _client
+      final query = _client
           .from('cita')
           .select('fecha_cita')
           .gte('fecha_cita', desdeIso)
-          .lte('fecha_cita', hastaIso)
-          .range(offset, offset + pageSize - 1);
+          .lte('fecha_cita', hastaIso);
+      final response = await query.range(offset, offset + pageSize - 1);
       final filas = response as List;
       for (final row in filas) {
         final fecha = (row as Map<String, dynamic>)['fecha_cita'] as String?;
@@ -292,15 +313,14 @@ class ClienteService {
 
   Future<List<CitaResumen>> fetchCitasDelDia(DateTime fecha) async {
     await _ensureInitialized();
-    final response = await _client
+    var query = _client
         .from('cita')
         .select(
           'id, contrato, cliente, fecha_cita, hora_cita, informacion, estado, '
-          'personal_asignado, personal_citas(funcionario), '
-          'usuario(nombres, apellidos)',
+          'usuario(id, nombres, apellidos)',
         )
-        .eq('fecha_cita', _isoFecha(fecha))
-        .order('hora_cita');
+        .eq('fecha_cita', _isoFecha(fecha));
+    final response = await query.order('hora_cita');
     return (response as List)
         .map((row) => _mapCita(row as Map<String, dynamic>))
         .toList();
@@ -313,17 +333,18 @@ class ClienteService {
   }
 
   CitaResumen _mapCita(Map<String, dynamic> row) {
-    final personal = row['personal_citas'];
     final usuario = row['usuario'];
-    final funcionario = personal is Map<String, dynamic>
-        ? '${personal['funcionario'] ?? ''}'
-        : '';
-    final creadoPor = usuario is Map<String, dynamic>
-        ? [
-            '${usuario['nombres'] ?? ''}',
-            '${usuario['apellidos'] ?? ''}',
-          ].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ')
-        : '';
+    int? usuarioId;
+    var asignadoA = '';
+    if (usuario is Map<String, dynamic>) {
+      usuarioId = usuario['id'] as int?;
+      asignadoA = [
+        '${usuario['nombres'] ?? ''}',
+        '${usuario['apellidos'] ?? ''}',
+      ].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
+    } else if (usuario is int) {
+      usuarioId = usuario;
+    }
     return CitaResumen(
       id: row['id'] as int,
       contrato: '${row['contrato'] ?? ''}',
@@ -331,10 +352,9 @@ class ClienteService {
       fecha: dmaDesdeIso(row['fecha_cita'] as String?),
       hora: '${row['hora_cita'] ?? ''}',
       informacion: '${row['informacion'] ?? ''}',
-      personal: funcionario,
-      personalId: row['personal_asignado'] as int?,
       estado: '${row['estado'] ?? ''}',
-      creadoPor: creadoPor,
+      usuarioId: usuarioId,
+      asignadoA: asignadoA,
     );
   }
 
@@ -418,6 +438,11 @@ class ClienteService {
     await _client.from('prospectos').insert(payload);
   }
 
+  Future<void> actualizarProspecto(int id, Map<String, dynamic> payload) async {
+    await _ensureInitialized();
+    await _client.from('prospectos').update(payload).eq('id', id);
+  }
+
   Future<PaginaProspectos> fetchProspectos({
     required int pagina,
     required int porPagina,
@@ -428,7 +453,7 @@ class ClienteService {
     var query = _client
         .from('prospectos')
         .select(
-          'id, prospecto, telefono, origen_prospecto, vigencia, usuario, created_at, usuario(nombres, apellidos)',
+          'id, prospecto, telefono, origen_prospecto, informacion, vigencia, usuario, created_at, usuario(nombres, apellidos)',
         );
 
     final rol = Sesion.instance.rol;
@@ -471,7 +496,10 @@ class ClienteService {
     if (usuario is Map<String, dynamic>) {
       final nombres = '${usuario['nombres'] ?? ''}';
       final apellidos = '${usuario['apellidos'] ?? ''}';
-      creadoPor = [nombres, apellidos].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
+      creadoPor = [
+        nombres,
+        apellidos,
+      ].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
       usuarioId = usuario['id'] as int?;
     } else if (usuario is int) {
       usuarioId = usuario;
@@ -482,6 +510,7 @@ class ClienteService {
       prospecto: '${row['prospecto'] ?? ''}',
       telefono: telefono == null ? '' : '$telefono',
       origenProspecto: '${row['origen_prospecto'] ?? ''}',
+      informacion: '${row['informacion'] ?? ''}',
       vigencia: dmaDesdeIso(row['vigencia'] as String?),
       creadoPor: creadoPor,
       usuarioId: usuarioId,

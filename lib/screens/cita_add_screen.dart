@@ -40,17 +40,13 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
 
   DateTime? _fechaSeleccionada;
   String? _horarioSeleccionado;
-  int? _personalSeleccionado;
-
-  List<PersonalCita> _personal = [];
-  bool _cargandoPersonal = true;
   Map<String, int> _cupos = {};
 
   @override
   void initState() {
     super.initState();
     final rol = Sesion.instance.rol;
-    final puede = rol == 1 || rol == 5;
+    final puede = rol == 1 || rol == 5 || rol == 6;
     if (!puede) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -62,9 +58,7 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
         );
         Navigator.of(context).pop();
       });
-      return;
     }
-    _cargarPersonal();
   }
 
   @override
@@ -75,36 +69,6 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
     _informacion.dispose();
     super.dispose();
   }
-
-  Future<void> _cargarPersonal() async {
-    try {
-      final personal = await ClienteService.instance.fetchPersonalCitas();
-      final ordenado = [...personal]
-        ..sort((a, b) {
-          final aSin = _esSinAsignar(a.funcionario);
-          final bSin = _esSinAsignar(b.funcionario);
-          if (aSin != bSin) return aSin ? -1 : 1;
-          return a.funcionario.toLowerCase().compareTo(
-            b.funcionario.toLowerCase(),
-          );
-        });
-      if (!mounted) return;
-      setState(() {
-        _personal = ordenado;
-        _personalSeleccionado = ordenado
-            .where((p) => _esSinAsignar(p.funcionario))
-            .firstOrNull
-            ?.id;
-        _cargandoPersonal = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _cargandoPersonal = false);
-    }
-  }
-
-  bool _esSinAsignar(String funcionario) =>
-      funcionario.trim().toUpperCase() == 'SIN ASIGNAR';
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +166,6 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
                 _buildClienteField(),
                 _buildFechaField(),
                 _buildHorarioField(),
-                _buildPersonalField(),
               ],
             ),
             const SizedBox(height: 16),
@@ -273,34 +236,6 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
         if (disponibles.isEmpty) return 'No hay horarios disponibles';
         return value == null ? 'Este campo es obligatorio' : null;
       },
-    );
-  }
-
-  Widget _buildPersonalField() {
-    return DropdownButtonFormField<int>(
-      initialValue: _personalSeleccionado,
-      isExpanded: true,
-      decoration: _fieldDecoration(
-        'Personal asignado',
-        Icons.badge_outlined,
-      ).copyWith(hintText: _cargandoPersonal ? 'Cargando personal...' : null),
-      items: [
-        for (final persona in _personal)
-          DropdownMenuItem(
-            value: persona.id,
-            child: Text(
-              persona.funcionario.isEmpty
-                  ? 'Personal ${persona.id}'
-                  : persona.funcionario,
-            ),
-          ),
-      ],
-      onChanged: _cargandoPersonal
-          ? null
-          : (value) {
-              setState(() => _personalSeleccionado = value);
-            },
-      validator: (value) => value == null ? 'Este campo es obligatorio' : null,
     );
   }
 
@@ -415,7 +350,6 @@ class _CitaAddScreenState extends State<CitaAddScreen> {
       'cliente': _cliente.text.trim(),
       'fecha_cita': _isoFecha(_fechaSeleccionada!),
       'hora_cita': _horarioSeleccionado,
-      'personal_asignado': _personalSeleccionado,
       'usuario': Sesion.instance.id,
       'informacion': info.isEmpty ? null : info,
     };

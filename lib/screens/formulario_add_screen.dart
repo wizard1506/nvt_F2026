@@ -12,7 +12,9 @@ import '../utils/fechas.dart';
 import '../utils/upper_case_formatter.dart';
 
 class FormularioAddScreen extends StatefulWidget {
-  const FormularioAddScreen({super.key});
+  const FormularioAddScreen({super.key, this.clienteId});
+
+  final int? clienteId;
 
   @override
   State<FormularioAddScreen> createState() => _FormularioAddScreenState();
@@ -88,8 +90,11 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
   String? _compraTercero;
   Uint8List? _mapaImagen;
   bool _saving = false;
+  bool _editListo = false;
   List<Urbanizacion> _urbanizaciones = [];
   int? _urbanizacionId;
+
+  bool get _esEdicion => widget.clienteId != null;
 
   @override
   void initState() {
@@ -127,7 +132,130 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     _c('dpto').text = '--';
     _c('moneda_vivienda').text = 'Bs';
     _c('moneda_ingresos').text = 'Bs';
-    _loadUrbanizaciones();
+    if (_esEdicion) {
+      _inicializarEdicion();
+    } else {
+      _loadUrbanizaciones();
+    }
+  }
+
+  Future<void> _inicializarEdicion() async {
+    await _loadUrbanizaciones();
+    if (!mounted) return;
+    try {
+      final row = await ClienteService.instance.fetchClientePorId(
+        widget.clienteId!,
+      );
+      if (!mounted) return;
+      if (row == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontró el formulario a editar.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+        return;
+      }
+      _aplicarDatosCliente(row);
+      setState(() => _editListo = true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo cargar el formulario: $error'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _aplicarDatosCliente(Map<String, dynamic> row) {
+    String s(dynamic v) {
+      if (v == null) return '';
+      if (v is double && v == v.roundToDouble()) return v.toInt().toString();
+      return '$v';
+    }
+
+    const textos = <String>[
+      'cargo_publico_detalle',
+      'familiar_cargo_publico_detalle',
+      'tercero_nombre',
+      'proyecto',
+      'uv',
+      'mz',
+      'lt',
+      'cat',
+      'mt2',
+      'cantidad_plazo',
+      'paterno',
+      'materno',
+      'nombres',
+      'casada',
+      'prefijo',
+      'documento',
+      'extension',
+      'nacionalidad',
+      'estado_civil',
+      'nivel_estudio',
+      'profesion',
+      'tipo_documento',
+      'sexo',
+      'tipo_vivienda',
+      'tenencia',
+      'costo_vivienda',
+      'moneda_vivienda',
+      'propietario',
+      'telf_propietario',
+      'pais',
+      'dpto',
+      'ciudad',
+      'zona',
+      'barrio',
+      'avenida',
+      'calle',
+      'numero',
+      'ubicacion',
+      'telf_movil',
+      'movil_oficina',
+      'telf_fijo',
+      'fijo_oficina',
+      'correo',
+      'empresa',
+      'direccion',
+      'rubro',
+      'ingresos',
+      'moneda_ingresos',
+      'referencia1',
+      'relacion1',
+      'telf_ref1',
+      'referencia2',
+      'relacion2',
+      'telf_ref2',
+      'obs1',
+      'obs2',
+    ];
+    for (final key in textos) {
+      _c(key).text = s(row[key]);
+    }
+
+    final fechaForm = edmDesdeIso(row['fecha_form'] as String?);
+    if (fechaForm != null) {
+      _c('dia').text = fechaForm[0];
+      _c('mes').text = fechaForm[1];
+      _c('anio').text = fechaForm[2];
+    }
+    _c('fecha_nacimiento').text = dmaDesdeIso(
+      row['fecha_nacimiento'] as String?,
+    );
+
+    _tipoParticipacion = row['tipo_participacion'] as String?;
+    _cargoPublico = row['cargo_publico'] as String?;
+    _cargoFamiliar = row['familiar_cargo_publico'] as String?;
+    _compraTercero = row['compra_tercero'] as String?;
+    _plazoContado = row['plazo_contado'] as String?;
+    _urbanizacionId = row['urbanizacion'] as int?;
   }
 
   Future<void> _loadUrbanizaciones() async {
@@ -161,13 +289,32 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final titulo = _esEdicion ? 'Editar Formulario' : 'Nuevo Formulario';
+    if (_esEdicion && !_editListo) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          title: Text(
+            titulo,
+            style: const TextStyle(
+              color: AppColors.darkBlue,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.primaryBlue),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: const Text(
-          'Nuevo Formulario',
-          style: TextStyle(
+        title: Text(
+          titulo,
+          style: const TextStyle(
             color: AppColors.darkBlue,
             fontWeight: FontWeight.bold,
           ),
@@ -1153,7 +1300,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
       return;
     }
 
-    final payload = _buildClientePayload();
+    final payload = _buildClientePayload(incluirUsuario: !_esEdicion);
     if (payload == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1175,7 +1322,14 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     );
 
     try {
-      await ClienteService.instance.insertarCliente(payload);
+      if (_esEdicion) {
+        await ClienteService.instance.actualizarCliente(
+          widget.clienteId!,
+          payload,
+        );
+      } else {
+        await ClienteService.instance.insertarCliente(payload);
+      }
       final data = <String, String>{
         for (final key in _fieldKeys)
           key: _c(key).text.trim() == 'NINGUNO' && key == 'prefijo'
@@ -1212,7 +1366,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     }
   }
 
-  Map<String, dynamic>? _buildClientePayload() {
+  Map<String, dynamic>? _buildClientePayload({bool incluirUsuario = true}) {
     double? aDouble(String key) => double.tryParse(_c(key).text.trim());
 
     int? anInt(String key) => int.tryParse(_c(key).text.trim());
@@ -1233,7 +1387,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
 
     final ubicacion = _c('ubicacion').text.trim();
 
-    return <String, dynamic>{
+    final payload = <String, dynamic>{
       'fecha_form': fechaForm,
       'tipo_participacion': _tipoParticipacion,
       'cargo_publico': _cargoPublico,
@@ -1306,6 +1460,8 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
       'cantidad_plazo': anInt('cantidad_plazo'),
       'plazo_contado': _plazoContado,
     };
+    if (!incluirUsuario) payload.remove('usuario');
+    return payload;
   }
 
   void _showGeneratedDialog(GeneratedForm result) {

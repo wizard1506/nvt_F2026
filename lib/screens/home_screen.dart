@@ -15,8 +15,8 @@ class HomeScreen extends StatelessWidget {
   bool _puedeVerFormularios(int? rol) => rol == 1 || rol == 4;
   bool _puedeVerProspectos(int? rol) => rol == 1 || rol == 4;
   bool _puedeVerCosolicitantes(int? rol) => rol == 1 || rol == 4;
-  bool _puedeVerCitas(int? rol) => rol == 1 || rol == 5;
-  bool _puedeVerAgenda(int? rol) => rol == 1 || rol == 5;
+  bool _puedeVerCitas(int? rol) => rol == 1 || rol == 5 || rol == 6;
+  bool _puedeVerAgenda(int? rol) => rol == 1 || rol == 5 || rol == 6;
 
   @override
   Widget build(BuildContext context) {

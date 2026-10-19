@@ -7,7 +7,9 @@ import '../theme/app_colors.dart';
 import '../utils/upper_case_formatter.dart';
 
 class ProspectosAddScreen extends StatefulWidget {
-  const ProspectosAddScreen({super.key});
+  const ProspectosAddScreen({super.key, this.prospecto});
+
+  final ProspectoResumen? prospecto;
 
   @override
   State<ProspectosAddScreen> createState() => _ProspectosAddScreenState();
@@ -29,6 +31,8 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
   String? _origenSeleccionado;
   bool _guardando = false;
 
+  bool get _esEdicion => widget.prospecto != null;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,15 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
         Navigator.of(context).pop();
       });
       return;
+    }
+    if (_esEdicion) {
+      final p = widget.prospecto!;
+      _nombre.text = p.prospecto;
+      _telefono.text = p.telefono;
+      _informacion.text = p.informacion;
+      if (_origenes.contains(p.origenProspecto)) {
+        _origenSeleccionado = p.origenProspecto;
+      }
     }
   }
 
@@ -83,6 +96,28 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
 
     setState(() => _guardando = true);
     try {
+      final informacion = _informacion.text.trim();
+
+      if (_esEdicion) {
+        await ClienteService.instance.actualizarProspecto(
+          widget.prospecto!.id,
+          {
+            'prospecto': _nombre.text.trim(),
+            'origen_prospecto': _origenSeleccionado,
+            'informacion': informacion.isEmpty ? null : informacion,
+          },
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Prospecto actualizado correctamente'),
+            backgroundColor: AppColors.mediumGreen,
+          ),
+        );
+        Navigator.of(context).pop(true);
+        return;
+      }
+
       final telefono = _telefono.text.trim();
       final puede = await ClienteService.instance.puedeRegistrarTelefono(
         telefono,
@@ -114,9 +149,7 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
         'prospecto': _nombre.text.trim(),
         'telefono': telefonoNum.toString(),
         'origen_prospecto': _origenSeleccionado,
-        'informacion': _informacion.text.trim().isEmpty
-            ? null
-            : _informacion.text.trim(),
+        'informacion': informacion.isEmpty ? null : informacion,
         'usuario': Sesion.instance.id,
         'vigencia': vigenciaIso,
       });
@@ -133,7 +166,7 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al registrar el prospecto: $error'),
+          content: Text('Error al guardar el prospecto: $error'),
           backgroundColor: Colors.red.shade700,
         ),
       );
@@ -154,9 +187,9 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: const Text(
-          'Nuevo Prospecto',
-          style: TextStyle(
+        title: Text(
+          _esEdicion ? 'Editar Prospecto' : 'Nuevo Prospecto',
+          style: const TextStyle(
             color: AppColors.darkBlue,
             fontWeight: FontWeight.bold,
           ),
@@ -196,8 +229,10 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
                                     color: AppColors.offWhite,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Icon(
-                                    Icons.person_add_alt_outlined,
+                                  child: Icon(
+                                    _esEdicion
+                                        ? Icons.edit_outlined
+                                        : Icons.person_add_alt_outlined,
                                     color: AppColors.primaryBlue,
                                   ),
                                 ),
@@ -250,6 +285,17 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
   }
 
   Widget _buildTelefono() {
+    if (_esEdicion) {
+      return TextFormField(
+        controller: _telefono,
+        enabled: false,
+        decoration: const InputDecoration(
+          labelText: 'Teléfono',
+          prefixIcon: Icon(Icons.phone_outlined, color: AppColors.primaryBlue),
+          helperText: 'El teléfono no se puede modificar',
+        ),
+      );
+    }
     return TextFormField(
       controller: _telefono,
       keyboardType: TextInputType.number,

@@ -47,7 +47,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   void initState() {
     super.initState();
     final rol = Sesion.instance.rol;
-    final puede = rol == 1 || rol == 5;
+    final puede = rol == 1 || rol == 5 || rol == 6;
     if (!puede) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -485,21 +485,39 @@ class _CitasDelDiaSheetState extends State<_CitasDelDiaSheet> {
             [
               if (cita.cliente.isNotEmpty) cita.cliente,
               cita.hora,
-              if (cita.personal.isNotEmpty) cita.personal,
+              if (cita.asignadoA.isNotEmpty) cita.asignadoA,
             ].join(' · '),
           ),
           trailing: EstadoBadge(
             estado: cita.estado,
-            onTap: () => _cambiarEstado(cita),
+            onTap: _puedeCambiarEstado ? () => _cambiarEstado(cita) : null,
           ),
         );
       },
     );
   }
 
+  bool get _puedeCambiarEstado {
+    final rol = Sesion.instance.rol;
+    return rol == 1 || rol == 5;
+  }
+
+  String _siguienteEstado(String actual) {
+    switch (actual) {
+      case 'PENDIENTE':
+        return 'ATENDIDA';
+      case 'ATENDIDA':
+        return 'CANCELADO';
+      case 'CANCELADO':
+        return 'PENDIENTE';
+      default:
+        return 'PENDIENTE';
+    }
+  }
+
   Future<void> _cambiarEstado(CitaResumen cita) async {
     final estadoActual = cita.estado.trim().toUpperCase();
-    final nuevoEstado = estadoActual == 'ATENDIDA' ? 'PENDIENTE' : 'ATENDIDA';
+    final nuevoEstado = _siguienteEstado(estadoActual);
 
     showDialog(
       context: context,

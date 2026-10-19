@@ -20,6 +20,9 @@ class EstadoBadge extends StatelessWidget {
       case 'ATENDIDA':
         color = AppColors.mediumGreen;
         break;
+      case 'CANCELADO':
+        color = Colors.red;
+        break;
       default:
         color = Colors.grey;
     }

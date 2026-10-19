@@ -1,0 +1,75 @@
+========================================================
+ PERFIL DE CLIENTE DE EJEMPLO - Novitierra
+ (Datos ficticios para pruebas de formularios)
+========================================================
+
+[DATOS DEL LOTE]
+urbanizacion      = Jardines del Norte
+proyecto          = 216
+uv                = 358
+mz                = 456
+lt                = 1112
+cat               = Q
+plazo_contado     = CONTADO
+mt2               = 1800.22
+cantidad_plazo    = 120
+
+[DATOS PERSONALES]
+paterno           = Rojas
+materno           = Condori
+nombres           = Ana María
+casada            = de Flores
+prefijo           = Sra.
+tipo_documento    = Cédula de Identidad
+documento         = 6843210
+extension         = SC
+nacionalidad      = Boliviana
+fecha_nacimiento  = 12/05/1985
+estado_civil      = Casada
+sexo              = Femenino
+nivel_estudio     = Universitario
+profesion         = Contadora
+
+[DATOS DE VIVIENDA]
+tipo_vivienda     = Casa
+tenencia          = Propia
+costo_vivienda    = 85000
+moneda_vivienda   = Bs
+propietario       = Jorge Rojas
+telf_propietario  = 3334567
+
+[DATOS DE LOCALIZACIÓN]
+pais              = Bolivia
+dpto              = Santa Cruz
+ciudad            = Santa Cruz de la Sierra
+zona              = Equipetrol Norte
+barrio            = Los Sauces
+avenida           = Av. Los Cusis
+calle             = Calle 7
+numero            = 245
+
+[DATOS DE CONTACTO]
+telf_movil        = 70123456
+movil_oficina     = 71122334
+telf_fijo         = 3345678
+fijo_oficina      = 3467890
+correo            = ana.rojas@gmail.com
+
+[DATOS LABORALES]
+empresa           = Rosana Textil S.A.
+direccion         = Av. Banzer Km 4.5, Zona Industrial
+rubro             = Textil
+ingresos          = 9500
+moneda_ingresos   = Bs
+
+[REFERENCIAS PERSONALES]
+referencia1       = Pedro Mamani
+relacion1         = Amigo
+telf_ref1         = 71234567
+referencia2       = Carmen Suárez
+relacion2         = Colega de trabajo
+telf_ref2         = 76345678
+
+[OBSERVACIONES]
+obs1              = Cliente interesado en cuota inicial del 20%, requiere asesoramiento sobre financiamiento.
+obs2              = Prefiere atención por WhatsApp en horario vespertino.

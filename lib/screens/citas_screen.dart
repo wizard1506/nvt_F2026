@@ -29,7 +29,7 @@ class _CitasScreenState extends State<CitasScreen> {
   void initState() {
     super.initState();
     final rol = Sesion.instance.rol;
-    final puede = rol == 1 || rol == 5;
+    final puede = rol == 1 || rol == 5 || rol == 6;
     if (!puede) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -102,19 +102,40 @@ class _CitasScreenState extends State<CitasScreen> {
 
   int get _totalPaginas => (_total / _porPagina).ceil().clamp(1, 1 << 31);
 
-  Future<void> _abrirNuevaCita() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (context) => const CitaAddScreen()));
-    if (!mounted) return;
-    _cargar();
+  bool get _puedeAsignar {
+    final rol = Sesion.instance.rol;
+    return rol == 1 || rol == 5;
   }
 
-  Future<void> _asignarPersonal(CitaResumen cita) async {
-    final personalId = await showDialog<int>(
+  bool get _puedeEliminar {
+    final rol = Sesion.instance.rol;
+    return rol == 1 || rol == 5;
+  }
+
+  Future<void> _eliminarCita(CitaResumen cita) async {
+    final confirmar = await showDialog<bool>(
       context: context,
-      builder: (_) => _AsignarPersonalDialog(cita: cita),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar cita'),
+        content: Text(
+          '¿Seguro que deseas eliminar la cita'
+          '${cita.contrato.isEmpty ? '' : ' del contrato ${cita.contrato}'}? '
+          'Esta accion no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
     );
-    if (personalId == null || !mounted) return;
+    if (confirmar != true || !mounted) return;
 
     showDialog(
       context: context,
@@ -125,12 +146,12 @@ class _CitasScreenState extends State<CitasScreen> {
     );
 
     try {
-      await ClienteService.instance.actualizarPersonalCita(cita.id, personalId);
+      await ClienteService.instance.eliminarCita(cita.id);
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Personal asignado correctamente'),
+          content: Text('Cita eliminada correctamente'),
           backgroundColor: AppColors.mediumGreen,
         ),
       );
@@ -140,7 +161,65 @@ class _CitasScreenState extends State<CitasScreen> {
       Navigator.of(context, rootNavigator: true).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error al asignar el personal: $error'),
+          content: Text('Error al eliminar la cita: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+
+  Future<void> _abrirNuevaCita() async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (context) => const CitaAddScreen()));
+    if (!mounted) return;
+    _cargar();
+  }
+
+  Future<void> _abrirDetalle(CitaResumen cita) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.white,
+      builder: (_) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: _DetalleCitaSheet(cita: cita),
+      ),
+    );
+  }
+
+  Future<void> _asignarUsuario(CitaResumen cita) async {
+    final usuarioId = await showDialog<int>(
+      context: context,
+      builder: (_) => _AsignarUsuarioDialog(cita: cita),
+    );
+    if (usuarioId == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryBlue),
+      ),
+    );
+
+    try {
+      await ClienteService.instance.actualizarUsuarioCita(cita.id, usuarioId);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cita asignada correctamente'),
+          backgroundColor: AppColors.mediumGreen,
+        ),
+      );
+      _cargar();
+    } catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al asignar la cita: $error'),
           backgroundColor: Colors.red.shade700,
         ),
       );
@@ -194,7 +273,7 @@ class _CitasScreenState extends State<CitasScreen> {
         controller: _searchController,
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
-          hintText: 'Buscar por contrato, cliente, personal o creador',
+          hintText: 'Buscar por contrato, cliente o asignado',
           prefixIcon: const Icon(Icons.search, color: AppColors.primaryBlue),
           suffixIcon: _searchController.text.isEmpty
               ? null
@@ -313,6 +392,7 @@ class _CitasScreenState extends State<CitasScreen> {
       fontWeight: FontWeight.bold,
     );
     return DataTable(
+      showCheckboxColumn: false,
       columnSpacing: 16,
       headingRowColor: WidgetStateProperty.all(AppColors.darkBlue),
       headingRowHeight: 44,
@@ -326,14 +406,15 @@ class _CitasScreenState extends State<CitasScreen> {
         DataColumn(label: Text('Cliente', style: headerStyle)),
         DataColumn(label: Text('Fecha', style: headerStyle)),
         DataColumn(label: Text('Hora', style: headerStyle)),
-        DataColumn(label: Text('Personal asignado', style: headerStyle)),
+        DataColumn(label: Text('Información', style: headerStyle)),
         DataColumn(label: Text('Estado', style: headerStyle)),
-        DataColumn(label: Text('Creado por', style: headerStyle)),
+        DataColumn(label: Text('Asignado a', style: headerStyle)),
         DataColumn(label: Text('Acciones', style: headerStyle)),
       ],
       rows: [
         for (final cita in _items)
           DataRow(
+            onSelectChanged: (_) => _abrirDetalle(cita),
             cells: [
               DataCell(
                 Text(
@@ -344,15 +425,42 @@ class _CitasScreenState extends State<CitasScreen> {
               DataCell(Text(cita.cliente)),
               DataCell(Text(cita.fecha)),
               DataCell(Text(cita.hora)),
-              DataCell(Text(cita.personal)),
-              DataCell(EstadoBadge(estado: cita.estado)),
-              DataCell(Text(cita.creadoPor)),
               DataCell(
-                OutlinedButton.icon(
-                  onPressed: () => _asignarPersonal(cita),
-                  icon: const Icon(Icons.assignment_ind_outlined, size: 18),
-                  label: const Text('Asignar'),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: Text(
+                    cita.informacion,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
+              ),
+              DataCell(EstadoBadge(estado: cita.estado)),
+              DataCell(Text(cita.asignadoA)),
+              DataCell(
+                _puedeAsignar
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () => _asignarUsuario(cita),
+                            icon: const Icon(
+                              Icons.assignment_ind_outlined,
+                              color: AppColors.primaryBlue,
+                            ),
+                            tooltip: 'Asignar',
+                          ),
+                          if (_puedeEliminar)
+                            IconButton(
+                              onPressed: () => _eliminarCita(cita),
+                              icon: Icon(
+                                Icons.delete_outline,
+                                color: Colors.red.shade700,
+                              ),
+                              tooltip: 'Eliminar',
+                            ),
+                        ],
+                      )
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
@@ -468,17 +576,17 @@ class _CitasScreenState extends State<CitasScreen> {
   }
 }
 
-class _AsignarPersonalDialog extends StatefulWidget {
-  const _AsignarPersonalDialog({required this.cita});
+class _AsignarUsuarioDialog extends StatefulWidget {
+  const _AsignarUsuarioDialog({required this.cita});
 
   final CitaResumen cita;
 
   @override
-  State<_AsignarPersonalDialog> createState() => _AsignarPersonalDialogState();
+  State<_AsignarUsuarioDialog> createState() => _AsignarUsuarioDialogState();
 }
 
-class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
-  List<PersonalCita> _personal = [];
+class _AsignarUsuarioDialogState extends State<_AsignarUsuarioDialog> {
+  List<UsuarioResumen> _usuarios = [];
   int? _seleccionado;
   bool _cargando = true;
   String? _error;
@@ -486,7 +594,7 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
   @override
   void initState() {
     super.initState();
-    _seleccionado = widget.cita.personalId;
+    _seleccionado = widget.cita.usuarioId;
     _cargar();
   }
 
@@ -496,19 +604,10 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
       _error = null;
     });
     try {
-      final personal = await ClienteService.instance.fetchPersonalCitas();
-      final ordenado = [...personal]
-        ..sort((a, b) {
-          final aSin = _esSinAsignar(a.funcionario);
-          final bSin = _esSinAsignar(b.funcionario);
-          if (aSin != bSin) return aSin ? -1 : 1;
-          return a.funcionario.toLowerCase().compareTo(
-            b.funcionario.toLowerCase(),
-          );
-        });
+      final usuarios = await ClienteService.instance.fetchUsuariosAsignables();
       if (!mounted) return;
       setState(() {
-        _personal = ordenado;
+        _usuarios = usuarios;
         _cargando = false;
       });
     } catch (error) {
@@ -520,13 +619,10 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
     }
   }
 
-  bool _esSinAsignar(String funcionario) =>
-      funcionario.trim().toUpperCase() == 'SIN ASIGNAR';
-
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Asignar personal'),
+      title: const Text('Asignar cita'),
       content: SizedBox(width: 360, child: _buildContent()),
       actions: [
         TextButton(
@@ -557,7 +653,7 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Error al cargar el personal:\n$_error',
+            'Error al cargar usuarios:\n$_error',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.red.shade700),
           ),
@@ -570,10 +666,10 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
         ],
       );
     }
-    if (_personal.isEmpty) {
+    if (_usuarios.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text('No hay personal registrado.'),
+        child: Text('No hay usuarios disponibles.'),
       );
     }
 
@@ -581,21 +677,107 @@ class _AsignarPersonalDialogState extends State<_AsignarPersonalDialog> {
       initialValue: _seleccionado,
       isExpanded: true,
       decoration: const InputDecoration(
-        labelText: 'Personal asignado',
-        prefixIcon: Icon(Icons.badge_outlined, color: AppColors.primaryBlue),
+        labelText: 'Asignado a',
+        prefixIcon: Icon(Icons.person_outline, color: AppColors.primaryBlue),
       ),
       items: [
-        for (final persona in _personal)
+        for (final usuario in _usuarios)
           DropdownMenuItem(
-            value: persona.id,
+            value: usuario.id,
             child: Text(
-              persona.funcionario.isEmpty
-                  ? 'Personal ${persona.id}'
-                  : persona.funcionario,
+              usuario.nombre.isEmpty ? 'Usuario ${usuario.id}' : usuario.nombre,
             ),
           ),
       ],
       onChanged: (value) => setState(() => _seleccionado = value),
+    );
+  }
+}
+
+class _DetalleCitaSheet extends StatelessWidget {
+  const _DetalleCitaSheet({required this.cita});
+
+  final CitaResumen cita;
+
+  @override
+  Widget build(BuildContext context) {
+    final info = cita.informacion.trim();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+      children: [
+        Text(
+          cita.contrato.isEmpty ? '(Sin contrato)' : cita.contrato,
+          style: const TextStyle(
+            color: AppColors.darkBlue,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _fila('Cliente', cita.cliente),
+        _fila('Fecha', cita.fecha),
+        _fila('Hora', cita.hora),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 120,
+                child: Text(
+                  'Estado',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(child: EstadoBadge(estado: cita.estado)),
+            ],
+          ),
+        ),
+        _fila('Asignado a', cita.asignadoA),
+        const Divider(height: 32),
+        Text(
+          'Información',
+          style: TextStyle(
+            color: Colors.grey.shade600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SelectableText(
+          info.isEmpty ? 'Sin información registrada' : info,
+          style: const TextStyle(fontSize: 15, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  Widget _fila(String etiqueta, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              etiqueta,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: SelectableText(
+              valor.trim().isEmpty ? '—' : valor,
+              style: const TextStyle(fontSize: 15, height: 1.4),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

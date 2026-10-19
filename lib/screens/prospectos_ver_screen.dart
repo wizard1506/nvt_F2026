@@ -109,6 +109,16 @@ class _ProspectosVerScreenState extends State<ProspectosVerScreen> {
     _cargar();
   }
 
+  Future<void> _editar(ProspectoResumen prospecto) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => ProspectosAddScreen(prospecto: prospecto),
+      ),
+    );
+    if (!mounted) return;
+    _cargar();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -284,6 +294,7 @@ class _ProspectosVerScreenState extends State<ProspectosVerScreen> {
         DataColumn(label: Text('Origen cliente', style: headerStyle)),
         DataColumn(label: Text('Vigencia', style: headerStyle)),
         DataColumn(label: Text('Creado por', style: headerStyle)),
+        DataColumn(label: Text('Acciones', style: headerStyle)),
       ],
       rows: [
         for (final p in _items)
@@ -294,6 +305,16 @@ class _ProspectosVerScreenState extends State<ProspectosVerScreen> {
               DataCell(Text(p.origenProspecto)),
               DataCell(Text(p.vigencia)),
               DataCell(Text(p.creadoPor)),
+              DataCell(
+                IconButton(
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    color: AppColors.primaryBlue,
+                  ),
+                  tooltip: 'Modificar',
+                  onPressed: () => _editar(p),
+                ),
+              ),
             ],
           ),
       ],

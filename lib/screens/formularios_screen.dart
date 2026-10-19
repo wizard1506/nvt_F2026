@@ -142,8 +142,14 @@ class _FormulariosScreenState extends State<FormulariosScreen> {
     _cargar();
   }
 
-  void _onRowTap(ClienteResumen cliente) {
-    // La edición se implementará en un paso posterior.
+  Future<void> _onRowTap(ClienteResumen cliente) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => FormularioAddScreen(clienteId: cliente.id),
+      ),
+    );
+    if (!mounted) return;
+    _cargar();
   }
 
   @override
