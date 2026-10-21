@@ -126,6 +126,33 @@ class PaginaProspectos {
   final int total;
 }
 
+class CosolicitanteResumen {
+  const CosolicitanteResumen({
+    required this.id,
+    required this.nombreCompleto,
+    required this.documento,
+    required this.telefonoMovil,
+    required this.creadoPor,
+    required this.usuarioId,
+    required this.createdAt,
+  });
+
+  final int id;
+  final String nombreCompleto;
+  final String documento;
+  final String telefonoMovil;
+  final String creadoPor;
+  final int? usuarioId;
+  final String createdAt;
+}
+
+class PaginaCosolicitantes {
+  const PaginaCosolicitantes({required this.items, required this.total});
+
+  final List<CosolicitanteResumen> items;
+  final int total;
+}
+
 class ClienteService {
   ClienteService._();
   static final ClienteService instance = ClienteService._();
@@ -178,6 +205,116 @@ class ClienteService {
   Future<void> insertarCosolicitante(Map<String, dynamic> payload) async {
     await _ensureInitialized();
     await _client.from('cosolicitante').insert(payload);
+  }
+
+  Future<void> actualizarCosolicitante(
+    int id,
+    Map<String, dynamic> payload,
+  ) async {
+    await _ensureInitialized();
+    await _client.from('cosolicitante').update(payload).eq('id', id);
+  }
+
+  Future<Map<String, dynamic>?> fetchCosolicitantePorId(int id) async {
+    await _ensureInitialized();
+    final response = await _client
+        .from('cosolicitante')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+    return response;
+  }
+
+  Future<PaginaCosolicitantes> fetchCosolicitantes({
+    required int pagina,
+    required int porPagina,
+    String busqueda = '',
+  }) async {
+    await _ensureInitialized();
+    final termino = busqueda.trim();
+    var query = _client
+        .from('cosolicitante')
+        .select(
+          'id, nombres, paterno, materno, casada, prefijo, documento, '
+          'extension, telf_movil, usuario, created_at, '
+          'usuario(id, nombres, apellidos)',
+        );
+
+    final rol = Sesion.instance.rol;
+    if (rol != 1 && rol != 2) {
+      final userId = Sesion.instance.id;
+      if (userId != null) {
+        query = query.eq('usuario', userId);
+      }
+    }
+
+    if (termino.isNotEmpty) {
+      final condiciones = <String>[
+        'nombres.ilike.%$termino%',
+        'paterno.ilike.%$termino%',
+        'materno.ilike.%$termino%',
+        'casada.ilike.%$termino%',
+        'documento.ilike.%$termino%',
+      ];
+      query = query.or(condiciones.join(','));
+    }
+
+    final respuesta = await query
+        .order('id', ascending: false)
+        .range(pagina * porPagina, pagina * porPagina + porPagina - 1)
+        .count(CountOption.exact);
+
+    final filas = respuesta.data as List;
+    return PaginaCosolicitantes(
+      items: filas
+          .map((row) => _mapCosolicitante(row as Map<String, dynamic>))
+          .toList(),
+      total: respuesta.count,
+    );
+  }
+
+  CosolicitanteResumen _mapCosolicitante(Map<String, dynamic> row) {
+    final usuario = row['usuario'];
+    String creadoPor = '';
+    int? usuarioId;
+    if (usuario is Map<String, dynamic>) {
+      final nombres = '${usuario['nombres'] ?? ''}';
+      final apellidos = '${usuario['apellidos'] ?? ''}';
+      creadoPor = [
+        nombres,
+        apellidos,
+      ].map((e) => e.trim()).where((e) => e.isNotEmpty).join(' ');
+      usuarioId = usuario['id'] as int?;
+    } else if (usuario is int) {
+      usuarioId = usuario;
+    }
+
+    String limpiar(String? valor) {
+      final texto = (valor ?? '').trim();
+      if (texto.isEmpty || texto == '--' || texto == 'NINGUNO') return '';
+      return texto;
+    }
+
+    final nombre = [
+      limpiar(row['nombres'] as String?),
+      limpiar(row['paterno'] as String?),
+      limpiar(row['materno'] as String?),
+    ].where((e) => e.isNotEmpty).join(' ');
+
+    final documento = limpiar(row['documento'] as String?);
+    final extension = limpiar(row['extension'] as String?);
+
+    return CosolicitanteResumen(
+      id: row['id'] as int,
+      nombreCompleto: nombre.isEmpty ? '(Sin nombre)' : nombre,
+      documento: documento.isEmpty
+          ? ''
+          : (extension.isEmpty ? documento : '$documento $extension'),
+      telefonoMovil: limpiar(row['telf_movil'] as String?),
+      creadoPor: creadoPor,
+      usuarioId: usuarioId,
+      createdAt: '${row['created_at'] ?? ''}',
+    );
   }
 
   Future<List<UsuarioResumen>> fetchUsuariosAsignables() async {
@@ -275,6 +412,29 @@ class ClienteService {
   Future<void> actualizarEstadoCita(int citaId, String estado) async {
     await _ensureInitialized();
     await _client.from('cita').update({'estado': estado}).eq('id', citaId);
+  }
+
+  Future<void> actualizarInformacionCita(
+    int citaId,
+    String? informacion,
+  ) async {
+    await _ensureInitialized();
+    await _client
+        .from('cita')
+        .update({'informacion': informacion})
+        .eq('id', citaId);
+  }
+
+  Future<void> actualizarCitaInfoYEstado(
+    int citaId,
+    String? informacion,
+    String estado,
+  ) async {
+    await _ensureInitialized();
+    await _client
+        .from('cita')
+        .update({'informacion': informacion, 'estado': estado})
+        .eq('id', citaId);
   }
 
   Future<void> eliminarCita(int citaId) async {

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../services/cliente_service.dart';
 import '../services/sesion.dart';
 import '../theme/app_colors.dart';
+import '../utils/estados_cita.dart';
+import '../utils/upper_case_formatter.dart';
 import '../widgets/estado_badge.dart';
 import 'cita_add_screen.dart';
 
@@ -112,6 +114,11 @@ class _CitasScreenState extends State<CitasScreen> {
     return rol == 1 || rol == 5;
   }
 
+  bool get _puedeCambiarEstado {
+    final rol = Sesion.instance.rol;
+    return rol == 1 || rol == 5;
+  }
+
   Future<void> _eliminarCita(CitaResumen cita) async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -173,6 +180,125 @@ class _CitasScreenState extends State<CitasScreen> {
         .push(MaterialPageRoute(builder: (context) => const CitaAddScreen()));
     if (!mounted) return;
     _cargar();
+  }
+
+  Future<void> _editarCita(CitaResumen cita) async {
+    final edicion = await showModalBottomSheet<_EdicionCita>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.white,
+      builder: (_) => _EditarCitaSheet(cita: cita),
+    );
+    if (edicion == null || !mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryBlue),
+      ),
+    );
+
+    try {
+      if (edicion.estado != null) {
+        await ClienteService.instance.actualizarCitaInfoYEstado(
+          cita.id,
+          edicion.informacion,
+          edicion.estado!,
+        );
+      } else {
+        await ClienteService.instance.actualizarInformacionCita(
+          cita.id,
+          edicion.informacion,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cita actualizada'),
+          backgroundColor: AppColors.mediumGreen,
+        ),
+      );
+      _cargar();
+    } catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar la cita: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
+  }
+
+  Future<void> _cambiarEstado(CitaResumen cita) async {
+    final estadoActual = cita.estado.trim().toUpperCase();
+    final nuevoEstado = siguienteEstadoCita(estadoActual);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.primaryBlue),
+      ),
+    );
+
+    try {
+      await ClienteService.instance.actualizarEstadoCita(cita.id, nuevoEstado);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Estado actualizado a $nuevoEstado'),
+          action: SnackBarAction(
+            label: 'Deshacer',
+            onPressed: () async {
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
+              );
+              try {
+                await ClienteService.instance.actualizarEstadoCita(
+                  cita.id,
+                  estadoActual.isEmpty ? 'PENDIENTE' : estadoActual,
+                );
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true).pop();
+                _cargar();
+              } catch (error) {
+                if (!mounted) return;
+                Navigator.of(context, rootNavigator: true).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('No se pudo deshacer el cambio: $error'),
+                    backgroundColor: Colors.red.shade700,
+                  ),
+                );
+              }
+            },
+          ),
+        ),
+      );
+      _cargar();
+    } catch (error) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cambiar el estado: $error'),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    }
   }
 
   Future<void> _abrirDetalle(CitaResumen cita) async {
@@ -434,33 +560,48 @@ class _CitasScreenState extends State<CitasScreen> {
                   ),
                 ),
               ),
-              DataCell(EstadoBadge(estado: cita.estado)),
+              DataCell(
+                EstadoBadge(
+                  estado: cita.estado,
+                  onTap: _puedeCambiarEstado
+                      ? () => _cambiarEstado(cita)
+                      : null,
+                ),
+              ),
               DataCell(Text(cita.asignadoA)),
               DataCell(
-                _puedeAsignar
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () => _asignarUsuario(cita),
-                            icon: const Icon(
-                              Icons.assignment_ind_outlined,
-                              color: AppColors.primaryBlue,
-                            ),
-                            tooltip: 'Asignar',
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: () => _editarCita(cita),
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: AppColors.darkGreen,
+                      ),
+                      tooltip: 'Editar información',
+                    ),
+                    if (_puedeAsignar) ...[
+                      IconButton(
+                        onPressed: () => _asignarUsuario(cita),
+                        icon: const Icon(
+                          Icons.assignment_ind_outlined,
+                          color: AppColors.primaryBlue,
+                        ),
+                        tooltip: 'Asignar',
+                      ),
+                      if (_puedeEliminar)
+                        IconButton(
+                          onPressed: () => _eliminarCita(cita),
+                          icon: Icon(
+                            Icons.delete_outline,
+                            color: Colors.red.shade700,
                           ),
-                          if (_puedeEliminar)
-                            IconButton(
-                              onPressed: () => _eliminarCita(cita),
-                              icon: Icon(
-                                Icons.delete_outline,
-                                color: Colors.red.shade700,
-                              ),
-                              tooltip: 'Eliminar',
-                            ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
+                          tooltip: 'Eliminar',
+                        ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -775,6 +916,163 @@ class _DetalleCitaSheet extends StatelessWidget {
               valor.trim().isEmpty ? '—' : valor,
               style: const TextStyle(fontSize: 15, height: 1.4),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EdicionCita {
+  const _EdicionCita({this.informacion, this.estado});
+
+  final String? informacion;
+  final String? estado;
+}
+
+class _EditarCitaSheet extends StatefulWidget {
+  const _EditarCitaSheet({required this.cita});
+
+  final CitaResumen cita;
+
+  @override
+  State<_EditarCitaSheet> createState() => _EditarCitaSheetState();
+}
+
+class _EditarCitaSheetState extends State<_EditarCitaSheet> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.cita.informacion,
+  );
+
+  late String _estado = _estadoInicial(widget.cita.estado);
+
+  bool get _puedeCambiarEstado {
+    final rol = Sesion.instance.rol;
+    return rol == 1 || rol == 5;
+  }
+
+  static String _estadoInicial(String estado) {
+    final valor = estado.trim().toUpperCase();
+    return estadosCita.contains(valor) ? valor : 'PENDIENTE';
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _guardar() {
+    final texto = _controller.text.trim();
+    Navigator.of(context).pop(
+      _EdicionCita(
+        informacion: texto.isEmpty ? null : texto,
+        estado: _puedeCambiarEstado ? _estado : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 8,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Editar cita',
+            style: TextStyle(
+              color: AppColors.darkBlue,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            [
+              if (widget.cita.contrato.isNotEmpty)
+                'Contrato: ${widget.cita.contrato}',
+              if (widget.cita.cliente.isNotEmpty)
+                'Cliente: ${widget.cita.cliente}',
+            ].join(' · '),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            initialValue: _estado,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              labelText: 'Estado',
+              prefixIcon: Icon(
+                Icons.flag_outlined,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            items: [
+              for (final estado in estadosCita)
+                DropdownMenuItem(value: estado, child: Text(estado)),
+            ],
+            onChanged: _puedeCambiarEstado
+                ? (value) {
+                    if (value != null) setState(() => _estado = value);
+                  }
+                : null,
+          ),
+          if (!_puedeCambiarEstado) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Solo los roles 1 y 5 pueden cambiar el estado.',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Flexible(
+            child: TextField(
+              controller: _controller,
+              maxLines: 5,
+              minLines: 3,
+              autofocus: true,
+              textAlignVertical: TextAlignVertical.top,
+              inputFormatters: const [UpperCaseTextFormatter()],
+              decoration: InputDecoration(
+                labelText: 'Información extra',
+                alignLabelWithHint: true,
+                prefixIcon: const Icon(
+                  Icons.notes_outlined,
+                  color: AppColors.primaryBlue,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.lightBlue),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.lightBlue),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _guardar,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Guardar'),
+              ),
+            ],
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/cliente_service.dart';
 import '../services/sesion.dart';
 import '../theme/app_colors.dart';
+import '../utils/estados_cita.dart';
 import '../widgets/estado_badge.dart';
 
 class AgendaScreen extends StatefulWidget {
@@ -502,22 +503,9 @@ class _CitasDelDiaSheetState extends State<_CitasDelDiaSheet> {
     return rol == 1 || rol == 5;
   }
 
-  String _siguienteEstado(String actual) {
-    switch (actual) {
-      case 'PENDIENTE':
-        return 'ATENDIDA';
-      case 'ATENDIDA':
-        return 'CANCELADO';
-      case 'CANCELADO':
-        return 'PENDIENTE';
-      default:
-        return 'PENDIENTE';
-    }
-  }
-
   Future<void> _cambiarEstado(CitaResumen cita) async {
     final estadoActual = cita.estado.trim().toUpperCase();
-    final nuevoEstado = _siguienteEstado(estadoActual);
+    final nuevoEstado = siguienteEstadoCita(estadoActual);
 
     showDialog(
       context: context,

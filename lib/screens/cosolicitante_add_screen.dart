@@ -9,7 +9,9 @@ import '../utils/fechas.dart';
 import '../utils/upper_case_formatter.dart';
 
 class CosolicitanteAddScreen extends StatefulWidget {
-  const CosolicitanteAddScreen({super.key});
+  const CosolicitanteAddScreen({super.key, this.cosolicitanteId});
+
+  final int? cosolicitanteId;
 
   @override
   State<CosolicitanteAddScreen> createState() => _CosolicitanteAddScreenState();
@@ -19,6 +21,9 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
   final _formKey = GlobalKey<FormState>();
   final _controllers = <String, TextEditingController>{};
   final _generator = FormGeneratorService();
+
+  bool get _esEdicion => widget.cosolicitanteId != null;
+  bool _editListo = false;
 
   static const _fieldKeys = <String>[
     'tipo_relacion',
@@ -50,6 +55,7 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
     'moneda_ingresos',
   ];
 
+  static const _prefijos = <String>['NINGUNO', 'VDA DE', 'DE'];
   static const _tipoIdentificacion = <String>[
     'Carnet de Identidad',
     'Pasaporte',
@@ -75,7 +81,7 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
     'Viudo(a)',
   ];
   static const _nivelesEstudio = <String>[
-    '--',
+    'Ninguno',
     'Primaria',
     'Secundaria',
     'Tecnico Medio',
@@ -99,21 +105,6 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
   @override
   void initState() {
     super.initState();
-    final rol = Sesion.instance.rol;
-    final puede = rol == 1 || rol == 4;
-    if (!puede) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No tienes permiso para acceder a esta sección'),
-            backgroundColor: Colors.orange,
-          ),
-        );
-        Navigator.of(context).pop();
-      });
-      return;
-    }
     for (final key in _fieldKeys) {
       _controllers[key] = TextEditingController();
     }
@@ -125,6 +116,114 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
     _c('nivel_estudio').text = 'Ninguno';
     _c('dpto').text = '--';
     _c('moneda_ingresos').text = 'Bs.';
+    if (_esEdicion) {
+      _inicializarEdicion();
+    }
+  }
+
+  Future<void> _inicializarEdicion() async {
+    try {
+      final row = await ClienteService.instance.fetchCosolicitantePorId(
+        widget.cosolicitanteId!,
+      );
+      if (!mounted) return;
+      if (row == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se encontró el co-solicitante a editar.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        Navigator.of(context).pop();
+        return;
+      }
+
+      final rol = Sesion.instance.rol;
+      final esSupervisor = rol == 1 || rol == 2;
+      if (!esSupervisor) {
+        final duenio = row['usuario'];
+        final duenioId = duenio is Map ? duenio['id'] : duenio;
+        if (duenioId != Sesion.instance.id) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'No tienes permiso para editar este co-solicitante.',
+              ),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          Navigator.of(context).pop();
+          return;
+        }
+      }
+
+      _aplicarDatos(row);
+      setState(() => _editListo = true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo cargar el co-solicitante: $error'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _aplicarDatos(Map<String, dynamic> row) {
+    String s(dynamic value) {
+      if (value == null) return '';
+      if (value is double && value == value.roundToDouble()) {
+        return value.toInt().toString();
+      }
+      return '$value';
+    }
+
+    const textos = <String>[
+      'tipo_relacion',
+      'paterno',
+      'materno',
+      'nombres',
+      'casada',
+      'profesion',
+      'nacionalidad',
+      'pais',
+      'telf_fijo',
+      'telf_movil',
+      'telf_fijo_oficina',
+      'telf_movil_oficina',
+      'correo',
+      'lugar_trabajo',
+      'direccion',
+      'rubro',
+      'ingresos',
+    ];
+    for (final key in textos) {
+      _c(key).text = s(row[key]);
+    }
+
+    _c('fecha_nacimiento').text = dmaDesdeIso(
+      row['fecha_nacimiento'] as String?,
+    );
+
+    void asignarDropdown(String key, String valor, List<String> opciones) {
+      final texto = s(row[key]).trim();
+      _c(key).text = opciones.contains(texto) ? texto : valor;
+    }
+
+    asignarDropdown('prefijo', 'NINGUNO', _prefijos);
+    asignarDropdown(
+      'tipo_identificacion',
+      'Carnet de Identidad',
+      _tipoIdentificacion,
+    );
+    asignarDropdown('extension', '--', _extensiones);
+    asignarDropdown('estado_civil', 'Soltero(a)', _estadosCiviles);
+    asignarDropdown('sexo', 'Masculino', _sexos);
+    asignarDropdown('nivel_estudio', 'Ninguno', _nivelesEstudio);
+    asignarDropdown('dpto', '--', _departamentos);
+    asignarDropdown('moneda_ingresos', 'Bs.', _monedasIngresos);
   }
 
   @override
@@ -139,13 +238,34 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final titulo = _esEdicion
+        ? 'Editar Co-Solicitante'
+        : 'Nuevo Co-Solicitante';
+    if (_esEdicion && !_editListo) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          elevation: 0,
+          title: Text(
+            titulo,
+            style: const TextStyle(
+              color: AppColors.darkBlue,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.primaryBlue),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: const Text(
-          'Nuevo Co-Solicitante',
-          style: TextStyle(
+        title: Text(
+          titulo,
+          style: const TextStyle(
             color: AppColors.darkBlue,
             fontWeight: FontWeight.bold,
           ),
@@ -203,11 +323,7 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
                           'Apellido de Casada',
                           Icons.favorite_border,
                         ),
-                        _buildDropdown('prefijo', 'Prefijo', const [
-                          'NINGUNO',
-                          'VDA DE',
-                          'DE',
-                        ]),
+                        _buildDropdown('prefijo', 'Prefijo', _prefijos),
                         _buildDropdown(
                           'tipo_identificacion',
                           'Tipo de Identificación',
@@ -498,7 +614,9 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
     );
   }
 
-  Map<String, dynamic> _buildCosolicitantePayload() {
+  Map<String, dynamic> _buildCosolicitantePayload({
+    bool incluirUsuario = true,
+  }) {
     String? registro(String key) {
       final value = _c(key).text.trim();
       return (value.isEmpty || value == '--' || value == 'NINGUNO')
@@ -534,7 +652,7 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
       'rubro': registro('rubro'),
       'ingresos': registro('ingresos'),
       'moneda_ingresos': registro('moneda_ingresos'),
-      'usuario': Sesion.instance.id,
+      if (incluirUsuario) 'usuario': Sesion.instance.id,
     };
   }
 
@@ -562,9 +680,16 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
     );
 
     try {
-      await ClienteService.instance.insertarCosolicitante(
-        _buildCosolicitantePayload(),
-      );
+      if (_esEdicion) {
+        await ClienteService.instance.actualizarCosolicitante(
+          widget.cosolicitanteId!,
+          _buildCosolicitantePayload(incluirUsuario: false),
+        );
+      } else {
+        await ClienteService.instance.insertarCosolicitante(
+          _buildCosolicitantePayload(),
+        );
+      }
       final data = <String, String>{
         for (final key in _fieldKeys)
           key: _c(key).text.trim() == 'NINGUNO' && key == 'prefijo'
@@ -576,6 +701,16 @@ class _CosolicitanteAddScreenState extends State<CosolicitanteAddScreen> {
       final result = await _generator.generateCosolAndSave(data);
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _esEdicion
+                ? 'Co-solicitante actualizado correctamente'
+                : 'Co-solicitante registrado correctamente',
+          ),
+          backgroundColor: AppColors.mediumGreen,
+        ),
+      );
       _showGeneratedDialog(result);
     } catch (error) {
       if (!mounted) return;
