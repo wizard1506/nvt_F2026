@@ -33,4 +33,24 @@ void main() {
 
     Sesion.instance.clear();
   });
+
+  testWidgets('Reportes solo es visible para el rol 1', (
+    WidgetTester tester,
+  ) async {
+    Sesion.instance.clear();
+    Sesion.instance.rol = 4;
+    await tester.pumpWidget(const MaterialApp(home: HomeScreen()));
+
+    expect(find.text('Reportes'), findsNothing);
+
+    Sesion.instance.rol = 1;
+    await tester.pumpWidget(
+      const MaterialApp(home: HomeScreen(key: ValueKey('reportes'))),
+    );
+    await tester.pump();
+
+    expect(find.text('Reportes'), findsOneWidget);
+
+    Sesion.instance.clear();
+  });
 }

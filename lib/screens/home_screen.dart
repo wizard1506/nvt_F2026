@@ -9,6 +9,7 @@ import 'cosolicitantes_screen.dart';
 import 'formularios_screen.dart';
 import 'login_screen.dart';
 import 'prospectos_ver_screen.dart';
+import 'reportes_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,6 +19,7 @@ class HomeScreen extends StatelessWidget {
   bool _puedeVerCosolicitantes(int? rol) => rol != null;
   bool _puedeVerCitas(int? rol) => rol == 1 || rol == 5 || rol == 6;
   bool _puedeVerAgenda(int? rol) => rol == 1 || rol == 5 || rol == 6;
+  bool _puedeVerReportes(int? rol) => rol == 1;
   bool _puedeVerAdministracion(int? rol) => rol == 1;
 
   @override
@@ -28,6 +30,7 @@ class HomeScreen extends StatelessWidget {
     final mostrarCosolicitantes = _puedeVerCosolicitantes(rol);
     final mostrarCitas = _puedeVerCitas(rol);
     final mostrarAgenda = _puedeVerAgenda(rol);
+    final mostrarReportes = _puedeVerReportes(rol);
     final mostrarAdministracion = _puedeVerAdministracion(rol);
 
     final tarjetas = <Widget>[];
@@ -112,6 +115,22 @@ class HomeScreen extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const AgendaScreen()),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarReportes) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Reportes',
+          subtitle: 'Exporta información a Excel',
+          icon: Icons.insert_chart_outlined,
+          color: AppColors.mediumGreen,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const ReportesScreen()),
             );
           },
         ),
