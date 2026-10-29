@@ -67,6 +67,20 @@ class AuthService {
     return (response as List).isNotEmpty;
   }
 
+  Future<bool> actualizarPasswordPorUsuario(
+    String usuario,
+    String password,
+  ) async {
+    await _ensureInitialized();
+    final hash = await compute(_hashPassword, password);
+    final response = await _client
+        .from('usuario')
+        .update({'password': hash})
+        .eq('usuario', usuario)
+        .select('id');
+    return (response as List).isNotEmpty;
+  }
+
   Future<bool> codigoAsesorExiste(int codigoAsesor) async {
     await _ensureInitialized();
     final response = await _client

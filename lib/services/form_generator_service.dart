@@ -387,11 +387,11 @@ class FormGeneratorService {
     final nombreCompleto = _fullName(d);
 
     return <_Overlay>[
-      _text(170.6, 381.6, dia, fontSize: 16, native: true),
-      _text(325.6, 381.6, mes, fontSize: 16, native: true),
-      _text(466.6, 381.6, anio, fontSize: 16, native: true),
+      _text(1320.6, 220.6, dia, fontSize: 16, native: true),
+      _text(1440.6, 220.6, mes, fontSize: 16, native: true),
+      _text(1555.6, 220.6, anio, fontSize: 16, native: true),
       _text(
-        450.6,
+        630.6,
         627.6,
         d['urbanizacion'] ?? '',
         fontSize: 18,
@@ -399,19 +399,26 @@ class FormGeneratorService {
         center: true,
         native: true,
       ),
-      _text(220.6, 830.6, d['proyecto'] ?? '', native: true),
-      _text(522.6, 830.6, d['uv'] ?? '', native: true),
-      _text(830.6, 830.6, d['mz'] ?? '', native: true),
-      _text(1130.6, 830.6, d['lt'] ?? '', native: true),
-      _text(1460.6, 830.6, d['cat'] ?? '', native: true),
-      _text(188.6, 1095.6, d['plazo_contado'] ?? '', native: true),
-      _text(520.6, 1095.6, d['mt2'] ?? '', native: true),
-      _text(1130.6, 1095.6, d['cantidad_plazo'] ?? '', native: true),
-      _text(1420.6, 1095.6, d['fecha_pago'] ?? '', native: true),
-      _text(160.6, 1245.6, nombreCompleto, native: true),
-      _text(1317.6, 1245.6, d['documento'] ?? '', native: true),
-      _text(188.6, 1286.6, d['extension'] ?? '', native: true),
-      _text(300.6, 2120.6, nombreCompleto, native: true),
+      _text(250.6, 880.6, d['proyecto'] ?? '', native: true),
+      _text(562.6, 880.6, d['uv'] ?? '', native: true),
+      _text(860.6, 880.6, d['mz'] ?? '', native: true),
+      _text(1180.6, 880.6, d['lt'] ?? '', native: true),
+      _text(1490.6, 880.6, d['cat'] ?? '', native: true),
+      _text(552.6, 1095.6, d['plazo_contado'] ?? '', native: true),
+      _text(250.6, 1095.6, d['mt2'] ?? '', native: true),
+      _text(1180.6, 1095.6, d['cantidad_plazo'] ?? '', native: true),
+      _text(1450.6, 1095.6, d['fecha_pago'] ?? '', native: true),
+      _text(210.6, 1230.6, nombreCompleto, native: true),
+      _text(700.6, 1266.6, d['documento'] ?? '', native: true),
+      _text(1300.6, 1266.6, d['extension'] ?? '', native: true),
+      _text(
+        448.6,
+        2287.6,
+        nombreCompleto,
+        fontSize: 10,
+        center: false,
+        native: true,
+      ),
     ];
   }
 
@@ -462,9 +469,16 @@ class FormGeneratorService {
         width: 1124,
       ),
       _form4Text(1300, 3010, d['tercero_nombre'] ?? '', width: 1124),
-      _form4Text(620, 3100, d['obs1'] ?? '', width: 1437, center: false),
-      _form4Text(620, 3150, d['obs2'] ?? '', width: 1437, center: false),
-      _form4Text(823, 3588, nombreCompleto, width: 1124),
+      _form4Text(720, 3100, d['obs1'] ?? '', width: 1437, center: false),
+      _form4Text(720, 3150, d['obs2'] ?? '', width: 1437, center: false),
+      _form4Text(
+        510,
+        3578,
+        nombreCompleto,
+        width: 1124,
+        center: false,
+        fontSize: _form4FontSize - 1,
+      ),
       _form4Text(
         1951,
         3588,
@@ -626,6 +640,7 @@ class FormGeneratorService {
     String text, {
     required double width,
     bool center = true,
+    double fontSize = _form4FontSize,
   }) {
     final maxWidth = 2 * (x < _form4Width - x ? x : _form4Width - x);
     final clamped = width > maxWidth ? maxWidth : width;
@@ -633,7 +648,7 @@ class FormGeneratorService {
       x,
       y,
       text,
-      fontSize: _form4FontSize,
+      fontSize: fontSize,
       width: clamped,
       center: center,
       native: true,

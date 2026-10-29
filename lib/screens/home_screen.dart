@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/sesion.dart';
 import '../theme/app_colors.dart';
+import 'administracion_screen.dart';
 import 'agenda_screen.dart';
 import 'citas_screen.dart';
 import 'cosolicitantes_screen.dart';
@@ -17,6 +18,7 @@ class HomeScreen extends StatelessWidget {
   bool _puedeVerCosolicitantes(int? rol) => rol != null;
   bool _puedeVerCitas(int? rol) => rol == 1 || rol == 5 || rol == 6;
   bool _puedeVerAgenda(int? rol) => rol == 1 || rol == 5 || rol == 6;
+  bool _puedeVerAdministracion(int? rol) => rol == 1;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +28,7 @@ class HomeScreen extends StatelessWidget {
     final mostrarCosolicitantes = _puedeVerCosolicitantes(rol);
     final mostrarCitas = _puedeVerCitas(rol);
     final mostrarAgenda = _puedeVerAgenda(rol);
+    final mostrarAdministracion = _puedeVerAdministracion(rol);
 
     final tarjetas = <Widget>[];
     if (mostrarFormularios) {
@@ -109,6 +112,24 @@ class HomeScreen extends StatelessWidget {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const AgendaScreen()),
+            );
+          },
+        ),
+      );
+    }
+    if (mostrarAdministracion) {
+      tarjetas.add(
+        _buildMenuCard(
+          context,
+          title: 'Administración',
+          subtitle: 'Opciones especiales de la aplicación',
+          icon: Icons.admin_panel_settings_outlined,
+          color: AppColors.darkBlue,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const AdministracionScreen(),
+              ),
             );
           },
         ),
