@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../utils/fechas.dart';
+
 class GeneratedForm {
   const GeneratedForm({required this.bytes, required this.path});
 
@@ -403,8 +405,9 @@ class FormGeneratorService {
       _text(1130.6, 830.6, d['lt'] ?? '', native: true),
       _text(1460.6, 830.6, d['cat'] ?? '', native: true),
       _text(188.6, 1095.6, d['plazo_contado'] ?? '', native: true),
-      _text(502.6, 1095.6, d['mt2'] ?? '', native: true),
+      _text(520.6, 1095.6, d['mt2'] ?? '', native: true),
       _text(1130.6, 1095.6, d['cantidad_plazo'] ?? '', native: true),
+      _text(1420.6, 1095.6, d['fecha_pago'] ?? '', native: true),
       _text(160.6, 1245.6, nombreCompleto, native: true),
       _text(1317.6, 1245.6, d['documento'] ?? '', native: true),
       _text(188.6, 1286.6, d['extension'] ?? '', native: true),
@@ -414,6 +417,7 @@ class FormGeneratorService {
 
   List<_Overlay> _form4Fields(Map<String, String> d, Uint8List check) {
     final nombreCompleto = _fullName(d);
+    final nacimiento = _fechaNacimientoPartes(d['fecha_nacimiento']);
 
     return <_Overlay>[
       _form4Text(588, 432, d['paterno'] ?? '', width: 1124),
@@ -421,9 +425,9 @@ class FormGeneratorService {
       _form4Text(586, 576, d['nombres'] ?? '', width: 1124),
       _form4Text(1596, 573, d['casada'] ?? '', width: 1124),
       _form4Text(2166, 573, d['prefijo'] ?? '', width: 375),
-      _form4Text(700, 819, _dateValue(d['dia']), width: 375),
-      _form4Text(928, 819, _dateValue(d['mes']), width: 375),
-      _form4Text(1161, 823, _dateValue(d['anio']), width: 375),
+      _form4Text(700, 819, nacimiento[0], width: 375),
+      _form4Text(928, 819, nacimiento[1], width: 375),
+      _form4Text(1161, 819, nacimiento[2], width: 375),
       _form4Text(1889, 890, d['documento'] ?? '', width: 1062),
       _form4Text(2262, 887, d['extension'] ?? '', width: 312),
       _form4Text(1030, 1051, d['profesion'] ?? '', width: 1124),
@@ -462,7 +466,7 @@ class FormGeneratorService {
       _form4Text(620, 3150, d['obs2'] ?? '', width: 1437, center: false),
       _form4Text(823, 3588, nombreCompleto, width: 1124),
       _form4Text(
-        1941,
+        1951,
         3588,
         _join([d['user_nombres'], d['user_apellidos']]),
         width: 937,
@@ -1082,6 +1086,11 @@ class FormGeneratorService {
       imageSize: size,
     );
   }
+
+  List<String> _fechaNacimientoPartes(String? value) =>
+      edmDesdeIso(value) ??
+      edmDesdeIso(isoDesdeDma(value)) ??
+      const <String>['', '', ''];
 
   String _dateValue(String? value) {
     final trimmed = (value ?? '').trim();

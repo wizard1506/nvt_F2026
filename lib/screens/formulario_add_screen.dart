@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:printing/printing.dart';
 
@@ -25,6 +24,33 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
   final _controllers = <String, TextEditingController>{};
   final _generator = FormGeneratorService();
 
+  static final _cantidadesPlazo = List<String>.generate(
+    12,
+    (index) => '${(index + 1) * 12}',
+  );
+
+  static const _proyectos = <String>[
+    '100',
+    '101',
+    '200',
+    '201',
+    '204',
+    '205',
+    '206',
+    '207',
+    '208',
+    '209',
+    '210',
+    '212',
+    '213',
+    '214',
+    '215',
+    '216',
+    '217',
+    '219',
+    '220',
+  ];
+
   static const _fieldKeys = <String>[
     // Tipo de participación
     'cargo_publico_detalle',
@@ -43,6 +69,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     'cat',
     'mt2',
     'cantidad_plazo',
+    'fecha_pago',
     // Datos personales
     'paterno',
     'materno',
@@ -88,6 +115,8 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
   String? _cargoPublico;
   String? _cargoFamiliar;
   String? _compraTercero;
+  String? _cantidadPlazoError;
+  String? _proyectoError;
   Uint8List? _mapaImagen;
   bool _saving = false;
   bool _editListo = false;
@@ -132,6 +161,9 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     _c('dpto').text = '--';
     _c('moneda_vivienda').text = 'Bs';
     _c('moneda_ingresos').text = 'Bs';
+    _c('cantidad_plazo').text = '144';
+    _c('cantidad_plazo').addListener(_onCantidadPlazoChanged);
+    _c('proyecto').addListener(_onProyectoChanged);
     if (_esEdicion) {
       _inicializarEdicion();
     } else {
@@ -249,6 +281,10 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     _c('fecha_nacimiento').text = dmaDesdeIso(
       row['fecha_nacimiento'] as String?,
     );
+    _c('fecha_pago').text = dmaDesdeIso(row['fecha_pago'] as String?);
+    if (_c('cantidad_plazo').text.trim().isEmpty) {
+      _c('cantidad_plazo').text = '144';
+    }
 
     _tipoParticipacion = row['tipo_participacion'] as String?;
     _cargoPublico = row['cargo_publico'] as String?;
@@ -256,6 +292,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     _compraTercero = row['compra_tercero'] as String?;
     _plazoContado = row['plazo_contado'] as String?;
     _urbanizacionId = row['urbanizacion'] as int?;
+    _c('urbanizacion').text = _nombreUrbanizacion(_urbanizacionId);
   }
 
   Future<void> _loadUrbanizaciones() async {
@@ -430,22 +467,34 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
                       isTablet,
                       [
                         _buildUrbanizacionField(),
+                        _buildProyectoField(),
                         _buildTextField(
-                          'proyecto',
-                          'Proyecto',
-                          Icons.home_work_outlined,
+                          'uv',
+                          'U.V.',
+                          Icons.grid_3x3,
+                          null,
+                          _requerido('la U.V.'),
                         ),
-                        _buildTextField('uv', 'U.V.', Icons.grid_3x3),
                         _buildTextField(
                           'mz',
                           'Manzana (MZ)',
                           Icons.crop_square,
+                          null,
+                          _requerido('la manzana (MZ)'),
                         ),
-                        _buildTextField('lt', 'Lote (LT)', Icons.crop_16_9),
+                        _buildTextField(
+                          'lt',
+                          'Lote (LT)',
+                          Icons.crop_16_9,
+                          null,
+                          _requerido('el lote (LT)'),
+                        ),
                         _buildTextField(
                           'cat',
                           'Categoría (CAT)',
                           Icons.category_outlined,
+                          null,
+                          _requerido('la categoría (CAT)'),
                         ),
                         DropdownButtonFormField<String>(
                           initialValue: _plazoContado,
@@ -464,24 +513,31 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
                               child: Text('Contado'),
                             ),
                           ],
+                          validator: (value) => value == null
+                              ? 'Selecciona la forma de pago'
+                              : null,
                           onChanged: (value) {
                             setState(() {
                               _plazoContado = value;
                             });
                           },
                         ),
+                        _buildDateField(
+                          key: 'fecha_pago',
+                          label: 'Fecha de Pago',
+                          icon: Icons.event_available_outlined,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        ),
                         _buildTextField(
                           'mt2',
                           'Superficie (m²)',
                           Icons.square_foot_outlined,
-                          TextInputType.number,
+                          const TextInputType.numberWithOptions(decimal: true),
+                          _validarSuperficie,
                         ),
-                        _buildTextField(
-                          'cantidad_plazo',
-                          'Cantidad de Plazos',
-                          Icons.date_range_outlined,
-                          TextInputType.number,
-                        ),
+                        _buildCantidadPlazoField(),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -605,7 +661,14 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
                           'Nacionalidad',
                           Icons.public,
                         ),
-                        _buildDateField(),
+                        _buildDateField(
+                          key: 'fecha_nacimiento',
+                          label: 'Fecha de Nacimiento',
+                          icon: Icons.cake_outlined,
+                          initialDate: DateTime(1990),
+                          firstDate: DateTime(1900),
+                          lastDate: DateTime.now(),
+                        ),
                         _buildDropdown('estado_civil', 'Estado Civil', [
                           'Soltero(a)',
                           'Casado(a)',
@@ -920,31 +983,192 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     );
   }
 
-  Widget _buildDateField() {
+  Widget _buildDateField({
+    required String key,
+    required String label,
+    required IconData icon,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+    String? Function(String?)? validator,
+  }) {
     return TextFormField(
-      controller: _c('fecha_nacimiento'),
+      controller: _c(key),
       readOnly: true,
-      decoration: _fieldDecoration('Fecha de Nacimiento', Icons.cake_outlined)
-          .copyWith(
-            suffixIcon: const Icon(
-              Icons.calendar_month_outlined,
-              color: AppColors.primaryBlue,
-            ),
-          ),
-      onTap: () => _pickDate(context),
+      validator: validator,
+      decoration: _fieldDecoration(label, icon).copyWith(
+        suffixIcon: const Icon(
+          Icons.calendar_month_outlined,
+          color: AppColors.primaryBlue,
+        ),
+      ),
+      onTap: () => _pickDate(
+        context,
+        key: key,
+        initialDate: initialDate,
+        firstDate: firstDate,
+        lastDate: lastDate,
+      ),
     );
   }
 
-  Future<void> _pickDate(BuildContext context) async {
+  Widget _buildCantidadPlazoField() {
+    return DropdownMenu<String>(
+      controller: _c('cantidad_plazo'),
+      requestFocusOnTap: true,
+      enableFilter: true,
+      expandedInsets: EdgeInsets.zero,
+      menuHeight: 280,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      label: const Text('Cantidad de Plazos'),
+      leadingIcon: const Icon(
+        Icons.date_range_outlined,
+        color: AppColors.primaryBlue,
+      ),
+      errorText: _cantidadPlazoError,
+      dropdownMenuEntries: [
+        for (final opcion in _opcionesCantidadPlazo)
+          DropdownMenuEntry<String>(value: opcion, label: opcion),
+      ],
+      onSelected: (_) {
+        if (_cantidadPlazoError != null) {
+          setState(() => _cantidadPlazoError = null);
+        }
+      },
+    );
+  }
+
+  Widget _buildProyectoField() {
+    return DropdownMenu<String>(
+      controller: _c('proyecto'),
+      requestFocusOnTap: true,
+      enableFilter: true,
+      expandedInsets: EdgeInsets.zero,
+      menuHeight: 280,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        FilteringTextInputFormatter.digitsOnly,
+        LengthLimitingTextInputFormatter(3),
+      ],
+      label: const Text('Proyecto'),
+      leadingIcon: const Icon(
+        Icons.home_work_outlined,
+        color: AppColors.primaryBlue,
+      ),
+      errorText: _proyectoError,
+      dropdownMenuEntries: [
+        for (final opcion in _opcionesProyecto)
+          DropdownMenuEntry<String>(value: opcion, label: opcion),
+      ],
+      onSelected: (_) {
+        if (_proyectoError != null) {
+          setState(() => _proyectoError = null);
+        }
+      },
+    );
+  }
+
+  void _onProyectoChanged() {
+    if (_proyectoError != null) {
+      setState(() => _proyectoError = null);
+    }
+  }
+
+  bool _validarProyecto() {
+    final texto = _c('proyecto').text.trim();
+    final valor = int.tryParse(texto);
+    if (valor == null || valor < 1 || valor > 999) {
+      setState(
+        () => _proyectoError = 'Selecciona o ingresa un proyecto (1–999)',
+      );
+      return false;
+    }
+    if (_proyectoError != null) {
+      setState(() => _proyectoError = null);
+    }
+    return true;
+  }
+
+  void _onCantidadPlazoChanged() {
+    if (_cantidadPlazoError != null) {
+      setState(() => _cantidadPlazoError = null);
+    }
+  }
+
+  bool _validarCantidadPlazo() {
+    final texto = _c('cantidad_plazo').text.trim();
+    final valor = int.tryParse(texto);
+    if (valor == null || valor < 1 || valor > 360) {
+      setState(() => _cantidadPlazoError = 'Ingresa un valor entre 1 y 360');
+      return false;
+    }
+    if (_cantidadPlazoError != null) {
+      setState(() => _cantidadPlazoError = null);
+    }
+    return true;
+  }
+
+  String? Function(String?) _requerido(String etiqueta) {
+    return (value) => (value ?? '').trim().isEmpty ? 'Ingresa $etiqueta' : null;
+  }
+
+  String? _validarSuperficie(String? value) {
+    final texto = (value ?? '').trim();
+    if (texto.isEmpty) return 'Ingresa la superficie';
+    final numero = double.tryParse(texto);
+    if (numero == null) {
+      return 'Ingresa un número válido (ej. 1800.22)';
+    }
+    if (numero <= 0) return 'La superficie debe ser mayor a 0';
+    return null;
+  }
+
+  List<String> get _opcionesProyecto {
+    final actual = _c('proyecto').text.trim();
+    if (actual.isEmpty || _proyectos.contains(actual)) {
+      return _proyectos;
+    }
+    final opciones = [..._proyectos, actual];
+    opciones.sort(
+      (a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0),
+    );
+    return opciones;
+  }
+
+  List<String> get _opcionesCantidadPlazo {
+    final actual = _c('cantidad_plazo').text.trim();
+    if (actual.isEmpty || _cantidadesPlazo.contains(actual)) {
+      return _cantidadesPlazo;
+    }
+    final opciones = [..._cantidadesPlazo, actual];
+    opciones.sort(
+      (a, b) => (int.tryParse(a) ?? 0).compareTo(int.tryParse(b) ?? 0),
+    );
+    return opciones;
+  }
+
+  Future<void> _pickDate(
+    BuildContext context, {
+    required String key,
+    required DateTime initialDate,
+    required DateTime firstDate,
+    required DateTime lastDate,
+  }) async {
+    final parsed = DateTime.tryParse(isoDesdeDma(_c(key).text) ?? '');
+    final valida =
+        parsed != null &&
+        !parsed.isBefore(firstDate) &&
+        !parsed.isAfter(lastDate);
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(1990),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
+      initialDate: valida ? parsed : initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
     if (picked != null) {
       setState(() {
-        _c('fecha_nacimiento').text =
+        _c(key).text =
             '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
       });
     }
@@ -1046,6 +1270,13 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     return null;
   }
 
+  String _nombreUrbanizacion(int? id) {
+    for (final urbanizacion in _urbanizaciones) {
+      if (urbanizacion.id == id) return urbanizacion.nombre;
+    }
+    return '';
+  }
+
   Widget _buildUrbanizacionField() {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1053,7 +1284,9 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
         Expanded(
           child: DropdownButtonFormField<int>(
             isExpanded: true,
-            initialValue: _urbanizacionId,
+            initialValue: _urbanizaciones.any((u) => u.id == _urbanizacionId)
+                ? _urbanizacionId
+                : null,
             decoration: _fieldDecoration('Urbanización', Icons.map_outlined),
             items: [
               for (final urbanizacion in _urbanizaciones)
@@ -1070,11 +1303,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
             onChanged: (value) {
               setState(() {
                 _urbanizacionId = value;
-                String nombre = '';
-                for (final urbanizacion in _urbanizaciones) {
-                  if (urbanizacion.id == value) nombre = urbanizacion.nombre;
-                }
-                _c('urbanizacion').text = nombre;
+                _c('urbanizacion').text = _nombreUrbanizacion(value);
               });
             },
           ),
@@ -1255,7 +1484,10 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
 
   Future<void> _handleSave() async {
     if (_saving) return;
-    if (!(_formKey.currentState?.validate() ?? false)) return;
+    final formularioOk = _formKey.currentState?.validate() ?? false;
+    final proyectoOk = _validarProyecto();
+    final cantidadOk = _validarCantidadPlazo();
+    if (!formularioOk || !proyectoOk || !cantidadOk) return;
 
     if (Sesion.instance.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1335,6 +1567,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
           key: _c(key).text.trim() == 'NINGUNO' && key == 'prefijo'
               ? ''
               : _c(key).text.trim(),
+        'urbanizacion': _nombreUrbanizacion(_urbanizacionId),
         'plazo_contado': ?_plazoContado,
         'generar_reserva': ?_generarReserva,
         'user_nombres': Sesion.instance.nombres ?? '',
@@ -1458,6 +1691,7 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
       'cat': registro('cat'),
       'mt2': aDouble('mt2'),
       'cantidad_plazo': anInt('cantidad_plazo'),
+      'fecha_pago': isoDesdeDma(_c('fecha_pago').text),
       'plazo_contado': _plazoContado,
     };
     if (!incluirUsuario) payload.remove('usuario');
