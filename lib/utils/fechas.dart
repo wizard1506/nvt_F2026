@@ -32,3 +32,18 @@ String dmaDesdeIso(String? iso) {
   if (parts == null) return '';
   return '${parts[0]}/${parts[1]}/${parts[2]}';
 }
+
+int diasRestantesHasta(String? iso, {DateTime? desde}) {
+  final parts = edmDesdeIso(iso);
+  if (parts == null) return 0;
+
+  final fecha = DateTime.utc(
+    int.parse(parts[2]),
+    int.parse(parts[1]),
+    int.parse(parts[0]),
+  );
+  final hoy = desde ?? DateTime.now();
+  final hoyUtc = DateTime.utc(hoy.year, hoy.month, hoy.day);
+
+  return fecha.difference(hoyUtc).inDays;
+}

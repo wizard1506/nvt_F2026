@@ -126,6 +126,22 @@ class PaginaProspectos {
   final int total;
 }
 
+class ProspectoVigente {
+  const ProspectoVigente({
+    required this.id,
+    required this.vigencia,
+    required this.nombreCompletoUsuario,
+    required this.usuario,
+    required this.diasRestantes,
+  });
+
+  final int id;
+  final String vigencia;
+  final String nombreCompletoUsuario;
+  final String usuario;
+  final int diasRestantes;
+}
+
 class CosolicitanteResumen {
   const CosolicitanteResumen({
     required this.id,
@@ -560,37 +576,63 @@ class ClienteService {
   }
 
   Future<bool> telefonoTieneVigenciaActiva(String telefono) async {
-    await _ensureInitialized();
-    final telTrim = telefono.trim();
-    if (telTrim.isEmpty) return false;
-    final telNum = BigInt.tryParse(telTrim.replaceAll(RegExp(r'\D'), ''));
-    if (telNum == null) return false;
-    final hoyIso = _isoFecha(DateTime.now());
-    final response = await _client
-        .from('prospectos')
-        .select('id')
-        .eq('telefono', telNum.toString())
-        .gte('vigencia', hoyIso)
-        .limit(1);
-    final filas = response as List;
-    return filas.isNotEmpty;
+    return (await prospectoVigentePorTelefono(telefono)) != null;
   }
 
   Future<bool> puedeRegistrarTelefono(String telefono) async {
+    return (await prospectoVigentePorTelefono(telefono)) == null;
+  }
+
+  Future<ProspectoVigente?> prospectoVigentePorTelefono(String telefono) async {
     await _ensureInitialized();
     final telTrim = telefono.trim();
-    if (telTrim.isEmpty) return true;
+    if (telTrim.isEmpty) return null;
     final telNum = BigInt.tryParse(telTrim.replaceAll(RegExp(r'\D'), ''));
-    if (telNum == null) return true;
-    final hoyIso = _isoFecha(DateTime.now());
+    if (telNum == null) return null;
+
+    final hoy = DateTime.now();
+    final hoyIso = _isoFecha(hoy);
     final response = await _client
         .from('prospectos')
-        .select('id')
+        .select(
+          'id, vigencia, registrador:usuario(nombres, apellidos, usuario)',
+        )
         .eq('telefono', telNum.toString())
         .gte('vigencia', hoyIso)
+        .order('created_at', ascending: false)
+        .order('id', ascending: false)
         .limit(1);
+
     final filas = response as List;
-    return filas.isEmpty;
+    if (filas.isEmpty) return null;
+
+    final fila = filas.first as Map<String, dynamic>;
+    final vigencia = '${fila['vigencia'] ?? ''}';
+    final registrador = fila['registrador'];
+    var nombreCompleto = '';
+    var usuario = '';
+
+    if (registrador is Map) {
+      final nombres = '${registrador['nombres'] ?? ''}'.trim();
+      final apellidos = '${registrador['apellidos'] ?? ''}'.trim();
+      nombreCompleto = [
+        nombres,
+        apellidos,
+      ].where((parte) => parte.isNotEmpty).join(' ');
+      usuario = '${registrador['usuario'] ?? ''}'.trim();
+    }
+
+    final nombreMostrado = nombreCompleto.isNotEmpty
+        ? nombreCompleto
+        : (usuario.isNotEmpty ? usuario : 'Usuario no disponible');
+
+    return ProspectoVigente(
+      id: fila['id'] as int,
+      vigencia: vigencia,
+      nombreCompletoUsuario: nombreMostrado,
+      usuario: usuario,
+      diasRestantes: diasRestantesHasta(vigencia, desde: hoy),
+    );
   }
 
   Future<void> insertarProspecto(Map<String, dynamic> payload) async {
@@ -611,7 +653,7 @@ class ClienteService {
     await _ensureInitialized();
     final termino = busqueda.trim();
     var query = _client
-        .from('prospectos')
+        .from('prospectos_busqueda')
         .select(
           'id, prospecto, telefono, origen_prospecto, informacion, vigencia, usuario, created_at, usuario(nombres, apellidos)',
         );
@@ -625,14 +667,10 @@ class ClienteService {
     }
 
     if (termino.isNotEmpty) {
-      final condiciones = <String>[];
-      condiciones.add('prospecto.ilike.%$termino%');
-      if (RegExp(r'^\d+$').hasMatch(termino)) {
-        condiciones.add('telefono::text.ilike.%$termino%');
-      } else if (termino.isNotEmpty) {
-        condiciones.add('telefono::text.ilike.%$termino%');
-      }
-      query = query.or(condiciones.join(','));
+      query = query.or(
+        'prospecto.ilike.%$termino%,'
+        'telefono_texto.ilike.%$termino%',
+      );
     }
 
     final respuesta = await query

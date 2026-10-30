@@ -119,20 +119,21 @@ class _ProspectosAddScreenState extends State<ProspectosAddScreen> {
       }
 
       final telefono = _telefono.text.trim();
-      final puede = await ClienteService.instance.puedeRegistrarTelefono(
-        telefono,
-      );
-      if (!puede) {
+      final duplicado = await ClienteService.instance
+          .prospectoVigentePorTelefono(telefono);
+      if (duplicado != null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Este número de teléfono ya tiene una vigencia activa (menos de 15 días). Usa otro número.',
+              'Prospecto ya registrado por '
+              '${duplicado.nombreCompletoUsuario}, '
+              'quedan ${duplicado.diasRestantes} dias.',
             ),
             backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
           ),
         );
-        setState(() => _guardando = false);
         return;
       }
 
