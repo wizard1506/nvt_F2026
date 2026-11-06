@@ -91,6 +91,16 @@ class AuthService {
     return (response as List).isNotEmpty;
   }
 
+  Future<int?> usuarioIdPorCodigoAsesor(int codigoAsesor) async {
+    await _ensureInitialized();
+    final row = await _client
+        .from('usuario')
+        .select('id')
+        .eq('codigo_asesor', codigoAsesor)
+        .maybeSingle();
+    return row?['id'] as int?;
+  }
+
   Future<void> registrarUsuario({
     required String nombres,
     required String apellidos,

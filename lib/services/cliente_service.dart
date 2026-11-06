@@ -203,6 +203,11 @@ class ClienteService {
     await _client.from('clientes').insert(payload);
   }
 
+  Future<void> insertarClientes(List<Map<String, dynamic>> payloads) async {
+    await _ensureInitialized();
+    await _client.from('clientes').insert(payloads);
+  }
+
   Future<Map<String, dynamic>?> fetchClientePorId(int id) async {
     await _ensureInitialized();
     final response = await _client

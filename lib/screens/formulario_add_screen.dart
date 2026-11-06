@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:printing/printing.dart';
 
+import '../services/auth_service.dart';
 import '../services/cliente_service.dart';
 import '../services/form_generator_service.dart';
 import '../services/sesion.dart';
@@ -122,6 +123,12 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
   bool _editListo = false;
   List<Urbanizacion> _urbanizaciones = [];
   int? _urbanizacionId;
+
+  final _asesorApoyoNombreController = TextEditingController();
+  final _asesorApoyoCodigoController = TextEditingController();
+  final _asesorApoyoCodigoFocus = FocusNode();
+  String _generarParaOtro = 'NO';
+  String? _asesorApoyoCodigoError;
 
   bool get _esEdicion => widget.clienteId != null;
 
@@ -319,6 +326,9 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     for (final controller in _controllers.values) {
       controller.dispose();
     }
+    _asesorApoyoNombreController.dispose();
+    _asesorApoyoCodigoController.dispose();
+    _asesorApoyoCodigoFocus.dispose();
     super.dispose();
   }
 
@@ -971,6 +981,8 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
                         _buildMultilineField('obs2', 'Observación 2', 3),
                       ],
                     ),
+                    const SizedBox(height: 20),
+                    _buildAsesorApoyoSection(isDesktop, isTablet),
                     const SizedBox(height: 32),
                     _buildSubmitButton(),
                   ],
@@ -1243,6 +1255,92 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     );
   }
 
+  Widget _buildAsesorApoyoSection(bool isDesktop, bool isTablet) {
+    final paraOtro = _generarParaOtro == 'SI';
+    return _buildSection(
+      const Icon(Icons.support_agent_outlined, color: AppColors.primaryBlue),
+      'Formulario para otro asesor',
+      isDesktop,
+      isTablet,
+      [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _generarParaOtro,
+              isExpanded: true,
+              decoration:
+                  _fieldDecoration(
+                    '¿Generar formulario para otro Asesor?',
+                    Icons.help_outline,
+                  ).copyWith(
+                    helperText: 'Selecciona SI solo si el PDF debe salir a nombre de otro asesor. Si eliges NO, se usarán tu nombre y código de sesión.',
+                    helperMaxLines: 3,
+                  ),
+              items: const [
+                DropdownMenuItem(value: 'NO', child: Text('No')),
+                DropdownMenuItem(value: 'SI', child: Text('Sí')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _generarParaOtro = value ?? 'NO';
+                  _asesorApoyoCodigoError = null;
+                });
+              },
+            ),
+            if (_esEdicion) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Si este formulario fue generado para otro asesor, vuelve a seleccionar SI e ingresa nuevamente los datos para regenerar el PDF.',
+                style: TextStyle(color: Colors.orange.shade800),
+              ),
+            ],
+            if (paraOtro) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _asesorApoyoNombreController,
+                inputFormatters: const [UpperCaseTextFormatter()],
+                decoration: _fieldDecoration(
+                  'Nombre completo del asesor',
+                  Icons.person_outline,
+                ),
+                validator: _requerido('el nombre completo del asesor'),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _asesorApoyoCodigoController,
+                focusNode: _asesorApoyoCodigoFocus,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _fieldDecoration(
+                  'Código de asesor',
+                  Icons.badge_outlined,
+                ).copyWith(errorText: _asesorApoyoCodigoError),
+                validator: (value) {
+                  final texto = (value ?? '').trim();
+                  if (texto.isEmpty) return 'Ingresa el código de asesor';
+                  if (int.tryParse(texto) == null) return 'Solo números';
+                  return null;
+                },
+                onChanged: (_) {
+                  if (_asesorApoyoCodigoError != null) {
+                    setState(() => _asesorApoyoCodigoError = null);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Estos datos solo se usan en el PDF y no se guardan en la base de datos.',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+            ],
+          ],
+        ),
+      ],
+      stacked: true,
+    );
+  }
+
   Widget _buildTextField(
     String key,
     String label,
@@ -1482,6 +1580,13 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
     }
   }
 
+  void _mostrarErrorCodigoApoyo(String mensaje) {
+    setState(() => _asesorApoyoCodigoError = mensaje);
+    if (_generarParaOtro == 'SI') {
+      _asesorApoyoCodigoFocus.requestFocus();
+    }
+  }
+
   Future<void> _handleSave() async {
     if (_saving) return;
     final formularioOk = _formKey.currentState?.validate() ?? false;
@@ -1543,6 +1648,49 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
       return;
     }
 
+    final esParaOtro = _generarParaOtro == 'SI';
+    final nombreAsesorApoyo = esParaOtro
+        ? _asesorApoyoNombreController.text.trim()
+        : '';
+    int? codigoAsesorApoyo;
+    int? usuarioApoyoId;
+    if (esParaOtro) {
+      codigoAsesorApoyo = int.tryParse(
+        _asesorApoyoCodigoController.text.trim(),
+      );
+      if (codigoAsesorApoyo == null) {
+        _mostrarErrorCodigoApoyo('Ingresa el código de asesor');
+        return;
+      }
+      try {
+        usuarioApoyoId = await AuthService.instance.usuarioIdPorCodigoAsesor(
+          codigoAsesorApoyo,
+        );
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo validar el código de asesor: $error'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+      if (!mounted) return;
+      if (usuarioApoyoId == null) {
+        _mostrarErrorCodigoApoyo(
+          'Código de asesor no encontrado. Verifícalo e inténtalo de nuevo.',
+        );
+        return;
+      }
+      if (usuarioApoyoId == Sesion.instance.id) {
+        _mostrarErrorCodigoApoyo(
+          'Ese código corresponde a tu usuario. Ingresa el código de otro asesor o selecciona NO.',
+        );
+        return;
+      }
+    }
+
     setState(() => _saving = true);
 
     showDialog(
@@ -1559,9 +1707,22 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
           widget.clienteId!,
           payload,
         );
+      } else if (usuarioApoyoId != null) {
+        final payloadApoyo = Map<String, dynamic>.from(payload)
+          ..['usuario'] = usuarioApoyoId;
+        await ClienteService.instance.insertarClientes([payload, payloadApoyo]);
       } else {
         await ClienteService.instance.insertarCliente(payload);
       }
+      final nombreAsesorPdf = esParaOtro
+          ? nombreAsesorApoyo
+          : Sesion.instance.nombres ?? '';
+      final apellidosAsesorPdf = esParaOtro
+          ? ''
+          : Sesion.instance.apellidos ?? '';
+      final codigoAsesorPdf = esParaOtro
+          ? codigoAsesorApoyo?.toString() ?? ''
+          : Sesion.instance.codigoAsesor?.toString() ?? '';
       final data = <String, String>{
         for (final key in _fieldKeys)
           key: _c(key).text.trim() == 'NINGUNO' && key == 'prefijo'
@@ -1570,9 +1731,9 @@ class _FormularioAddScreenState extends State<FormularioAddScreen> {
         'urbanizacion': _nombreUrbanizacion(_urbanizacionId),
         'plazo_contado': ?_plazoContado,
         'generar_reserva': ?_generarReserva,
-        'user_nombres': Sesion.instance.nombres ?? '',
-        'user_apellidos': Sesion.instance.apellidos ?? '',
-        'user_codigo_asesor': Sesion.instance.codigoAsesor?.toString() ?? '',
+        'user_nombres': nombreAsesorPdf,
+        'user_apellidos': apellidosAsesorPdf,
+        'user_codigo_asesor': codigoAsesorPdf,
         'tipo_participacion': _tipoParticipacion ?? '',
         'cargo_publico': _cargoPublico ?? '',
         'familiar_cargo_publico': _cargoFamiliar ?? '',
